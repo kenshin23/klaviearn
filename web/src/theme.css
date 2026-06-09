@@ -1,0 +1,219 @@
+/* Klaviearn — "large-print music classroom"
+   Dark warm ink chrome around a cream manuscript card. Everything oversized;
+   Atkinson Hyperlegible (designed for low-vision readers) for UI text,
+   Fraunces for display. */
+
+:root {
+  --ink: #191621;
+  --ink-2: #232030;
+  --ink-3: #322d42;
+  --cream: #f7f1e2;
+  --cream-edge: #d9cfae;
+  --text: #f3eddd;
+  --dim: #a89fb5;
+  --gold: #e3a93c;
+  --ok: #37b06b;
+  --ok-bright: #62dd97;
+  --bad: #d6455b;
+  --radius: 18px;
+  --shadow-press: 0 6px 0 rgba(0, 0, 0, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #262134 0%, var(--ink) 60%);
+  color: var(--text);
+  font-family: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+  font-size: 22px;
+  line-height: 1.45;
+}
+
+#root { display: flex; justify-content: center; }
+
+.screen {
+  width: 100%;
+  max-width: 960px;
+  padding: 20px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ---------- Display type ---------- */
+.hero { text-align: center; margin-top: 4vh; }
+.hero h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 900;
+  font-size: clamp(52px, 9vw, 84px);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.hero .accent { color: var(--gold); }
+.tagline { color: var(--dim); margin: 6px 0 0; font-size: 24px; }
+.streak { color: var(--ok-bright); font-weight: 700; margin: 10px 0 0; }
+
+h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 700;
+  font-size: 30px;
+  margin: 0 0 6px;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  width: 100%;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0) 40%),
+    var(--ink-2);
+  border: 2px solid var(--ink-3);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+
+.staff-card {
+  background:
+    radial-gradient(140% 100% at 50% 0%, #fbf6ea 0%, var(--cream) 70%);
+  border: 2px solid var(--cream-edge);
+  border-bottom-width: 6px;
+  padding: 4px 14px;
+  transition: box-shadow 0.18s, border-color 0.18s;
+}
+.staff-card .staff { margin: 0 auto; }
+.size-medium .staff { max-width: 540px; }
+.size-large .staff { max-width: 740px; }
+.size-huge .staff { max-width: 100%; }
+
+.flash-ok {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.flash-bad {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 40%, transparent);
+}
+
+/* ---------- Buttons ---------- */
+.row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; width: 100%; }
+
+.btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 23px;
+  color: var(--text);
+  background: var(--ink-3);
+  border: 2px solid #46405c;
+  border-radius: 14px;
+  padding: 13px 22px;
+  min-height: 60px;
+  cursor: pointer;
+  box-shadow: var(--shadow-press);
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: #221a08; }
+.btn.quiet { box-shadow: none; background: transparent; border-color: var(--ink-3); color: var(--dim); }
+.btn.listening { background: #16382a; border-color: var(--ok); color: var(--ok-bright); }
+.btn.answer { font-size: 28px; padding: 18px 30px; }
+
+:focus-visible {
+  outline: 4px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ---------- Letter keys ---------- */
+.keys { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.key {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 900;
+  font-size: 32px;
+  color: #181410;
+  background: var(--key-color);
+  border: none;
+  border-radius: 14px;
+  width: 76px;
+  min-height: 68px;
+  cursor: pointer;
+  box-shadow: var(--shadow-press);
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+.key:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); }
+.key:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------- Session chrome ---------- */
+.session-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dots { display: flex; gap: 9px; flex-wrap: wrap; }
+.dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  border: 2px solid #46405c;
+}
+.dot.current { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 30%, var(--ink-3)); }
+.dot.ok { background: var(--ok); border-color: var(--ok); }
+.dot.bad { background: var(--bad); border-color: var(--bad); }
+
+.status {
+  min-height: 2.2em;
+  margin: 0;
+  font-size: 27px;
+  font-weight: 700;
+  text-align: center;
+}
+.hearing { display: block; font-size: 19px; font-weight: 400; color: var(--dim); }
+.inputs-status { color: var(--dim); font-size: 18px; text-align: center; margin: 4px 0 0; }
+
+/* ---------- Home / summary ---------- */
+.nodes { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+.node p { margin: 0 0 14px; color: var(--dim); font-size: 20px; }
+.node .row { justify-content: flex-start; }
+.node-head { display: flex; justify-content: space-between; align-items: baseline; }
+.acc {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--ok-bright);
+}
+
+.summary { text-align: center; }
+.summary .dots { justify-content: center; margin-top: 10px; }
+.big-score {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 900;
+  font-size: 72px;
+  margin: 6px 0 10px;
+  color: var(--gold);
+}
+
+/* ---------- Settings ---------- */
+.settings { display: flex; flex-direction: column; gap: 14px; }
+.toggle {
+  display: flex; align-items: center; gap: 14px;
+  font-size: 22px; cursor: pointer;
+}
+.toggle input[type="checkbox"] { width: 28px; height: 28px; accent-color: var(--gold); }
+.toggle select {
+  font: inherit; font-size: 20px;
+  background: var(--ink-3); color: var(--text);
+  border: 2px solid #46405c; border-radius: 10px; padding: 8px 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+@media (max-width: 560px) {
+  html, body { font-size: 19px; }
+  .key { width: 60px; min-height: 60px; font-size: 26px; }
+  .node .row { justify-content: center; }
+}

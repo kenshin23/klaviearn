@@ -31,16 +31,24 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phase 0 (working spike)** — a single dependency-free page that renders one
-giant note and checks what you play via microphone, MIDI, or on-screen keys.
+**Phase 1 (playable core)** — a React app in [`web/`](web/) with the session
+loop: note-reading and line-or-space drills across three skill nodes, answers
+via microphone, MIDI, or on-screen keys, a settings panel for the visual
+scaffolds, and progress persisted locally.
+
+```bash
+cd web
+npm install
+npm run dev
+# open http://localhost:5173 in Chrome (Safari has no Web MIDI)
+```
+
+The original **Phase 0** proof-of-concept — a single dependency-free page —
+lives in [`phase0/`](phase0/) and still works offline:
 
 ```bash
 python3 -m http.server 8000 --directory phase0
-# open http://localhost:8000 in Chrome (Safari has no Web MIDI)
 ```
-
-See [phase0/README.md](phase0/README.md) for details. Works offline; VexFlow
-is vendored.
 
 ## Planned stack
 
