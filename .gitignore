@@ -9,6 +9,8 @@ __pycache__/
 # Node (Phase 1+)
 node_modules/
 dist/
+# The user-level git ignore excludes lockfiles; this repo wants them committed.
+!package-lock.json
 
 # Local env/editor
 .env
