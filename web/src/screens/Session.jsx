@@ -1,11 +1,17 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import Staff from "../components/Staff.jsx";
 import Keys from "../components/Keys.jsx";
-import { buildSession } from "../lib/session.js";
 import { noteName } from "../lib/notes.js";
 import { audioContext, chimeCorrect, chimeWrong, playMidi } from "../lib/audio.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
+
+// Which training wheels to show: explicit modes pin a level; "auto" uses the
+// per-note SRS scaffold level (0 letters+colors, 1 colors, 2 plain).
+function scaffoldFlags(mode, level) {
+  const lvl = mode === "full" ? 0 : mode === "colors" ? 1 : mode === "plain" ? 2 : level;
+  return { letters: lvl === 0, colors: lvl <= 1 };
+}
 
 // The exercise state machine: listen → feedback → (next | done).
 function reducer(state, action) {
@@ -13,7 +19,8 @@ function reducer(state, action) {
     case "wrong":
       return { ...state, firstTry: false, message: action.message };
     case "correct": {
-      const results = [...state.results, { midi: state.exercises[state.idx].note.midi, hit: state.firstTry }];
+      const ex = state.exercises[state.idx];
+      const results = [...state.results, { item: ex.item, hit: state.firstTry }];
       return { ...state, phase: "feedback", results, message: action.message };
     }
     case "advance": {
@@ -26,17 +33,18 @@ function reducer(state, action) {
   }
 }
 
-export default function Session({ node, drill, settings, noteStats, onFinish, onHome }) {
-  const [state, dispatch] = useReducer(reducer, null, () => ({
-    exercises: buildSession(node, drill, noteStats),
+export default function Session({ exercises, settings, onFinish, onHome }) {
+  const [state, dispatch] = useReducer(reducer, {
+    exercises,
     idx: 0,
     phase: "listen",
     firstTry: true,
     results: [],
     message: null,
-  }));
+  });
   const [mic, setMic] = useState({ status: "idle", hearing: null });
   const [midiDevices, setMidiDevices] = useState([]);
+  const [reward, setReward] = useState(null);
   const micStopRef = useRef(null);
 
   const exercise = state.exercises[state.idx];
@@ -49,13 +57,13 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
   function answerNote(midi, { pitchClassOnly = false } = {}) {
     const { state, settings, exercise } = live.current;
     if (state.phase !== "listen" || exercise.drill !== "note") return;
-    const target = exercise.note.midi;
+    const target = exercise.midi;
     const hit = pitchClassOnly || !settings.strictOctave
       ? midi % 12 === target % 12
       : midi === target;
     if (hit) {
       chimeCorrect();
-      dispatch({ type: "correct", message: `${exercise.note.letter} — correct!` });
+      dispatch({ type: "correct", message: `${exercise.letter} — correct!` });
     } else {
       chimeWrong();
       dispatch({ type: "wrong", message: `You played ${noteName(midi)}` });
@@ -65,12 +73,12 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
   function answerPos(pos) {
     const { state, exercise } = live.current;
     if (state.phase !== "listen" || exercise.drill !== "linespace") return;
-    if (pos === exercise.note.pos) {
+    if (pos === exercise.pos) {
       chimeCorrect();
-      dispatch({ type: "correct", message: `Yes — ${exercise.note.posLabel}.` });
+      dispatch({ type: "correct", message: `Yes — ${exercise.posLabel}.` });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", message: `Look again — is the notehead on a line, or between lines?` });
+      dispatch({ type: "wrong", message: "Look again — is the notehead on a line, or between lines?" });
     }
   }
 
@@ -81,9 +89,10 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
     return () => clearTimeout(t);
   }, [state.phase, state.idx]);
 
-  // Session complete → hand results to the app once.
+  // Session complete → hand results to the app; show XP/streak if it returns them.
   useEffect(() => {
-    if (state.phase === "done") onFinish(state.results);
+    if (state.phase !== "done") return;
+    Promise.resolve(onFinish(state.results)).then(setReward).catch(() => setReward(null));
   }, [state.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // MIDI: wired for the whole session.
@@ -128,6 +137,12 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
         <section className="card summary">
           <h2>Session complete</h2>
           <p className="big-score">{ok} / {state.results.length}</p>
+          {reward && (
+            <p className="reward">
+              +{reward.xpGained} XP
+              {reward.streakDays > 0 && ` · 🔥 ${reward.streakDays}-day streak`}
+            </p>
+          )}
           <div className="dots" aria-label="Results per exercise">
             {state.results.map((r, i) => (
               <span key={i} className={`dot ${r.hit ? "ok" : "bad"}`} />
@@ -140,6 +155,8 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
       </main>
     );
   }
+
+  const scaffold = scaffoldFlags(settings.scaffold, exercise.level);
 
   return (
     <main className="screen">
@@ -156,9 +173,9 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
 
       <section className={`card staff-card ${state.phase === "feedback" ? "flash-ok" : ""} ${state.message && state.phase === "listen" && !state.firstTry ? "flash-bad" : ""} size-${settings.staffSize}`}>
         <Staff
-          note={exercise.note}
-          showLetter={exercise.drill === "note" && settings.letters}
-          showColor={exercise.drill === "note" && settings.colors}
+          exercise={exercise}
+          showLetter={exercise.drill === "note" && scaffold.letters}
+          showColor={exercise.drill === "note" && scaffold.colors}
         />
       </section>
 
@@ -183,7 +200,7 @@ export default function Session({ node, drill, settings, noteStats, onFinish, on
             >
               {mic.status === "listening" ? "🎤 Listening…" : "🎤 Start microphone"}
             </button>
-            <button className="btn" onClick={() => playMidi(exercise.note.midi)}>
+            <button className="btn" onClick={() => playMidi(exercise.midi)}>
               🔊 Hear it
             </button>
           </div>

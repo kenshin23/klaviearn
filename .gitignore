@@ -5,6 +5,7 @@
 __pycache__/
 *.pyc
 .venv/
+*.db
 
 # Node (Phase 1+)
 node_modules/

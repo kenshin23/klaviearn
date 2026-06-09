@@ -4,20 +4,16 @@ export default function SettingsPanel({ settings, onChange }) {
     <section className="settings card" aria-label="Settings">
       <h2>Settings</h2>
       <label className="toggle">
-        <input
-          type="checkbox"
-          checked={settings.letters}
-          onChange={e => set({ letters: e.target.checked })}
-        />
-        Letter names under notes
-      </label>
-      <label className="toggle">
-        <input
-          type="checkbox"
-          checked={settings.colors}
-          onChange={e => set({ colors: e.target.checked })}
-        />
-        Color-coded notes
+        Training wheels
+        <select
+          value={settings.scaffold}
+          onChange={e => set({ scaffold: e.target.value })}
+        >
+          <option value="auto">Auto — fade as I master each note</option>
+          <option value="full">Always: letters + colors</option>
+          <option value="colors">Colors only</option>
+          <option value="plain">Plain notation</option>
+        </select>
       </label>
       <label className="toggle">
         <input

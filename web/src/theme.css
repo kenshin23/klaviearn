@@ -195,6 +195,31 @@ h2 {
   color: var(--gold);
 }
 
+/* ---------- Auth ---------- */
+.auth-form { display: flex; flex-direction: column; gap: 16px; max-width: 560px; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 21px; }
+.auth-form input {
+  font: inherit; font-size: 23px;
+  background: var(--ink-3); color: var(--text);
+  border: 2px solid #46405c; border-radius: 12px; padding: 12px 14px;
+}
+.form-error { color: var(--bad); font-weight: 700; margin: 0; }
+
+/* ---------- Stats chips ---------- */
+.chips { display: flex; gap: 10px; justify-content: center; margin: 12px 0 0; }
+.chip {
+  background: var(--ink-2); border: 2px solid var(--ink-3);
+  border-radius: 999px; padding: 6px 16px;
+  font-weight: 700; font-size: 20px;
+}
+.node-stats { display: flex; gap: 12px; align-items: baseline; }
+.due {
+  background: var(--gold); color: #221a08;
+  border-radius: 999px; padding: 3px 12px;
+  font-weight: 700; font-size: 17px;
+}
+.reward { font-size: 26px; font-weight: 700; color: var(--ok-bright); margin: 0 0 8px; }
+
 /* ---------- Settings ---------- */
 .settings { display: flex; flex-direction: column; gap: 14px; }
 .toggle {

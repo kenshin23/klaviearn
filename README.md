@@ -31,13 +31,19 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phase 1 (playable core)** — a React app in [`web/`](web/) with the session
-loop: note-reading and line-or-space drills across three skill nodes, answers
-via microphone, MIDI, or on-screen keys, a settings panel for the visual
-scaffolds, and progress persisted locally.
+**Phase 2 (learning engine)** — a FastAPI backend in [`server/`](server/)
+with accounts, real spaced repetition (SM-2 variant, one review per item per
+session), per-note scaffold fading, XP and day streaks, and a skill tree that
+now spans both clefs. The React app in [`web/`](web/) works logged-in
+(server is the source of truth) or as an offline guest (localStorage).
 
 ```bash
-# Node 24 (see .nvmrc — `nvm use` picks it up)
+# API (Python 3.11 via asdf — see .tool-versions)
+cd server
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --port 8787 --reload
+
+# Web app (Node 24 — see .nvmrc; `nvm use` picks it up)
 cd web
 npm install
 npm run dev
