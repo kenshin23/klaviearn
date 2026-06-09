@@ -233,6 +233,45 @@ h2 {
   border: 2px solid #46405c; border-radius: 10px; padding: 8px 12px;
 }
 
+/* ---------- Rhythm drill ---------- */
+.rhythm-play { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.rhythm-meta { margin: 0; font-size: 22px; color: var(--dim); }
+.count { color: var(--gold); font-size: 30px; }
+.count.go { color: var(--ok-bright); }
+.tap-pad {
+  width: 100%; max-width: 700px; min-height: 110px;
+  font-size: 26px; background: var(--ink-2);
+  border: 3px dashed #46405c;
+  touch-action: manipulation;
+}
+.tap-pad:disabled { opacity: 0.45; }
+.verdicts { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin: 0; }
+.verdict { font-weight: 700; font-size: 22px; }
+.verdict.ok { color: var(--ok-bright); }
+.verdict.early, .verdict.late { color: var(--gold); }
+.verdict.missed { color: var(--bad); }
+
+/* ---------- Stats ---------- */
+.stats-block { display: flex; flex-direction: column; gap: 8px; }
+.muted { color: var(--dim); margin: 0; }
+.confusions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 22px; }
+.count-badge {
+  background: var(--bad); color: #fff; border-radius: 999px;
+  padding: 1px 12px; margin-left: 10px; font-weight: 700; font-size: 18px;
+}
+.item-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.item-bars li { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr 70px auto; gap: 12px; align-items: center; }
+.item-name { font-weight: 700; font-size: 20px; }
+.bar-track { background: var(--ink-3); border-radius: 999px; height: 20px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--ok); border-radius: 999px; }
+.item-acc { font-weight: 700; text-align: right; }
+.item-level { color: var(--dim); font-size: 17px; }
+@media (max-width: 700px) {
+  .item-bars li { grid-template-columns: 1fr 70px; }
+  .bar-track { grid-column: 1 / -1; }
+  .item-level { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

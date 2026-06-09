@@ -36,4 +36,5 @@ export const api = {
     ),
   completeSession: (node_id, drill, results) =>
     request("/sessions/complete", { method: "POST", body: { node_id, drill, results } }),
+  stats: () => request("/stats"),
 };

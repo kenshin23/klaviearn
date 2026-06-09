@@ -1,8 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import Staff from "../components/Staff.jsx";
+import PhraseStaff from "../components/PhraseStaff.jsx";
+import RhythmStaff from "../components/RhythmStaff.jsx";
+import RhythmPlay from "../components/RhythmPlay.jsx";
 import Keys from "../components/Keys.jsx";
 import { noteName } from "../lib/notes.js";
-import { audioContext, chimeCorrect, chimeWrong, playMidi } from "../lib/audio.js";
+import { audioContext, chimeCorrect, chimeWrong, tick, playMidi } from "../lib/audio.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
 
@@ -14,19 +17,29 @@ function scaffoldFlags(mode, level) {
 }
 
 // The exercise state machine: listen → feedback → (next | done).
+// `results` is one entry per SRS item (a phrase contributes several);
+// `exDots` is one boolean per exercise for the progress dots.
 function reducer(state, action) {
   switch (action.type) {
     case "wrong":
-      return { ...state, firstTry: false, message: action.message };
-    case "correct": {
-      const ex = state.exercises[state.idx];
-      const results = [...state.results, { item: ex.item, hit: state.firstTry }];
-      return { ...state, phase: "feedback", results, message: action.message };
-    }
+      return {
+        ...state,
+        firstTry: false,
+        wrongPlayed: state.wrongPlayed ?? action.played ?? null,
+        message: action.message,
+      };
+    case "correct":
+      return {
+        ...state,
+        phase: "feedback",
+        results: [...state.results, ...action.entries],
+        exDots: [...state.exDots, action.entries.every(e => e.hit)],
+        message: action.message,
+      };
     case "advance": {
       const idx = state.idx + 1;
       if (idx >= state.exercises.length) return { ...state, phase: "done" };
-      return { ...state, idx, phase: "listen", firstTry: true, message: null };
+      return { ...state, idx, phase: "listen", firstTry: true, wrongPlayed: null, message: null };
     }
     default:
       return state;
@@ -39,34 +52,75 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     idx: 0,
     phase: "listen",
     firstTry: true,
+    wrongPlayed: null,
     results: [],
+    exDots: [],
     message: null,
   });
   const [mic, setMic] = useState({ status: "idle", hearing: null });
   const [midiDevices, setMidiDevices] = useState([]);
   const [reward, setReward] = useState(null);
+  const [phrase, setPhrase] = useState({ idx: 0, misses: {} });
   const micStopRef = useRef(null);
+  const tapRef = useRef(null);
 
   const exercise = state.exercises[state.idx];
+  useEffect(() => setPhrase({ idx: 0, misses: {} }), [state.idx]);
 
   // Input handlers read live state through this ref, so the mic/MIDI
   // listeners (wired once) never act on a stale exercise.
   const live = useRef(null);
-  live.current = { state, settings, exercise };
+  live.current = { state, settings, exercise, phrase };
 
-  function answerNote(midi, { pitchClassOnly = false } = {}) {
-    const { state, settings, exercise } = live.current;
-    if (state.phase !== "listen" || exercise.drill !== "note") return;
-    const target = exercise.midi;
-    const hit = pitchClassOnly || !settings.strictOctave
+  function matches(midi, target, pitchClassOnly) {
+    return pitchClassOnly || !live.current.settings.strictOctave
       ? midi % 12 === target % 12
       : midi === target;
-    if (hit) {
+  }
+
+  function answerNote(midi, { pitchClassOnly = false } = {}) {
+    const { state, exercise, phrase } = live.current;
+    if (state.phase !== "listen") return;
+
+    if (exercise.drill === "rhythm") {
+      tapRef.current?.(); // a piano key is a perfectly good drumstick
+      return;
+    }
+
+    if (exercise.drill === "phrase") {
+      const current = exercise.notes[phrase.idx];
+      if (matches(midi, current.midi, pitchClassOnly)) {
+        if (phrase.idx + 1 >= exercise.notes.length) {
+          chimeCorrect();
+          const entries = exercise.notes.map((n, i) => ({
+            item: n.item,
+            hit: !(i in phrase.misses),
+            played: phrase.misses[i] ?? null,
+          }));
+          dispatch({ type: "correct", entries, message: "Phrase complete!" });
+        } else {
+          tick();
+          setPhrase(p => ({ ...p, idx: p.idx + 1 }));
+        }
+      } else {
+        chimeWrong();
+        setPhrase(p => ({ ...p, misses: { [p.idx]: p.misses[p.idx] ?? midi, ...p.misses } }));
+        dispatch({ type: "wrong", played: midi, message: `You played ${noteName(midi)}` });
+      }
+      return;
+    }
+
+    if (exercise.drill !== "note") return;
+    if (matches(midi, exercise.midi, pitchClassOnly)) {
       chimeCorrect();
-      dispatch({ type: "correct", message: `${exercise.letter} — correct!` });
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: state.wrongPlayed }],
+        message: `${exercise.letter} — correct!`,
+      });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", message: `You played ${noteName(midi)}` });
+      dispatch({ type: "wrong", played: midi, message: `You played ${noteName(midi)}` });
     }
   }
 
@@ -75,19 +129,40 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     if (state.phase !== "listen" || exercise.drill !== "linespace") return;
     if (pos === exercise.pos) {
       chimeCorrect();
-      dispatch({ type: "correct", message: `Yes — ${exercise.posLabel}.` });
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
+        message: `Yes — ${exercise.posLabel}.`,
+      });
     } else {
       chimeWrong();
       dispatch({ type: "wrong", message: "Look again — is the notehead on a line, or between lines?" });
     }
   }
 
-  // Auto-advance after the green moment.
+  function rhythmAttempt(hit) {
+    const { state, exercise } = live.current;
+    if (state.phase !== "listen") return;
+    if (hit) {
+      chimeCorrect();
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
+        message: "Locked in!",
+      });
+    } else {
+      chimeWrong();
+      dispatch({ type: "wrong", message: "Not quite — check the timing marks and go again." });
+    }
+  }
+
+  // Auto-advance after the green moment (longer for rhythm: read the verdicts).
   useEffect(() => {
     if (state.phase !== "feedback") return;
-    const t = setTimeout(() => dispatch({ type: "advance" }), 900);
+    const delay = exercise.drill === "rhythm" ? 1600 : 900;
+    const t = setTimeout(() => dispatch({ type: "advance" }), delay);
     return () => clearTimeout(t);
-  }, [state.phase, state.idx]);
+  }, [state.phase, state.idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Session complete → hand results to the app; show XP/streak if it returns them.
   useEffect(() => {
@@ -95,10 +170,10 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     Promise.resolve(onFinish(state.results)).then(setReward).catch(() => setReward(null));
   }, [state.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // MIDI: wired for the whole session.
+  // MIDI: wired once for the whole session; routes into the active drill.
   useEffect(() => startMidiListener({ onNote: answerNote, onDevices: setMidiDevices }), []);
 
-  // Typing: letters answer the note drill; L / S answer line-or-space.
+  // Typing: letters for pitches, L/S for line-or-space, space/enter taps rhythm.
   useEffect(() => {
     const onKey = e => {
       const k = e.key.toUpperCase();
@@ -108,6 +183,10 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       }
       if (k === "L") answerPos("line");
       if (k === "S") answerPos("space");
+      if ((e.key === " " || e.key === "Enter") && live.current.exercise.drill === "rhythm") {
+        e.preventDefault();
+        tapRef.current?.();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -131,12 +210,12 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   useEffect(() => () => micStopRef.current?.(), []);
 
   if (state.phase === "done") {
-    const ok = state.results.filter(r => r.hit).length;
+    const ok = state.exDots.filter(Boolean).length;
     return (
       <main className="screen">
         <section className="card summary">
           <h2>Session complete</h2>
-          <p className="big-score">{ok} / {state.results.length}</p>
+          <p className="big-score">{ok} / {state.exDots.length}</p>
           {reward && (
             <p className="reward">
               +{reward.xpGained} XP
@@ -144,8 +223,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             </p>
           )}
           <div className="dots" aria-label="Results per exercise">
-            {state.results.map((r, i) => (
-              <span key={i} className={`dot ${r.hit ? "ok" : "bad"}`} />
+            {state.exDots.map((hit, i) => (
+              <span key={i} className={`dot ${hit ? "ok" : "bad"}`} />
             ))}
           </div>
         </section>
@@ -157,6 +236,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   }
 
   const scaffold = scaffoldFlags(settings.scaffold, exercise.level);
+  const isPitchDrill = exercise.drill === "note" || exercise.drill === "phrase";
 
   return (
     <main className="screen">
@@ -164,26 +244,36 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         <button className="btn quiet" onClick={onHome} aria-label="End session and go home">✕ End</button>
         <div className="dots" aria-label={`Exercise ${state.idx + 1} of ${state.exercises.length}`}>
           {state.exercises.map((_, i) => {
-            const r = state.results[i];
-            const cls = r ? (r.hit ? "ok" : "bad") : i === state.idx ? "current" : "";
+            const cls = i < state.exDots.length
+              ? (state.exDots[i] ? "ok" : "bad")
+              : i === state.idx ? "current" : "";
             return <span key={i} className={`dot ${cls}`} />;
           })}
         </div>
       </div>
 
       <section className={`card staff-card ${state.phase === "feedback" ? "flash-ok" : ""} ${state.message && state.phase === "listen" && !state.firstTry ? "flash-bad" : ""} size-${settings.staffSize}`}>
-        <Staff
-          exercise={exercise}
-          showLetter={exercise.drill === "note" && scaffold.letters}
-          showColor={exercise.drill === "note" && scaffold.colors}
-        />
+        {exercise.drill === "phrase" ? (
+          <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
+        ) : exercise.drill === "rhythm" ? (
+          <RhythmStaff durations={exercise.durations} />
+        ) : (
+          <Staff
+            exercise={exercise}
+            showLetter={exercise.drill === "note" && scaffold.letters}
+            showColor={exercise.drill === "note" && scaffold.colors}
+          />
+        )}
       </section>
 
       <p className="status" role="status">
         {state.message ??
-          (exercise.drill === "note"
-            ? "Play the note you see."
-            : "Is this note on a line, or in a space?")}
+          {
+            note: "Play the note you see.",
+            phrase: "Play the phrase, left to right.",
+            linespace: "Is this note on a line, or in a space?",
+            rhythm: "Tap this rhythm with the metronome.",
+          }[exercise.drill]}
         {mic.status === "listening" && (
           <span className="hearing">
             {mic.hearing ? `Hearing: ${noteName(mic.hearing.midi)}` : "Listening…"}
@@ -191,7 +281,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         )}
       </p>
 
-      {exercise.drill === "note" ? (
+      {isPitchDrill && (
         <>
           <div className="row">
             <button
@@ -200,21 +290,32 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             >
               {mic.status === "listening" ? "🎤 Listening…" : "🎤 Start microphone"}
             </button>
-            <button className="btn" onClick={() => playMidi(exercise.midi)}>
+            <button
+              className="btn"
+              onClick={() =>
+                playMidi(exercise.drill === "phrase" ? exercise.notes[phrase.idx].midi : exercise.midi)
+              }
+            >
               🔊 Hear it
             </button>
           </div>
           <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
         </>
-      ) : (
+      )}
+
+      {exercise.drill === "linespace" && (
         <div className="row linespace">
-          <button className="btn answer" onClick={() => answerPos("line")}>
-            ── Line ──
-          </button>
-          <button className="btn answer" onClick={() => answerPos("space")}>
-            ‿ Space ‿
-          </button>
+          <button className="btn answer" onClick={() => answerPos("line")}>── Line ──</button>
+          <button className="btn answer" onClick={() => answerPos("space")}>‿ Space ‿</button>
         </div>
+      )}
+
+      {exercise.drill === "rhythm" && (
+        <RhythmPlay
+          exercise={exercise}
+          onAttempt={rhythmAttempt}
+          registerTap={fn => { tapRef.current = fn; }}
+        />
       )}
 
       <p className="inputs-status">

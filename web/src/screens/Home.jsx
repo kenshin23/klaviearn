@@ -3,7 +3,16 @@ import SettingsPanel from "../components/SettingsPanel.jsx";
 
 // `nodes` carries optional server stats (accuracy, dueCount, mastery);
 // guest mode passes the same shape with only accuracy filled in.
-export default function Home({ nodes, me, settings, onSettings, onStart, onLogout, onSignup }) {
+const DRILLS = {
+  notes: [
+    ["note", "▶ Read notes", "primary"],
+    ["phrase", "Read phrases", ""],
+    ["linespace", "Line or space?", ""],
+  ],
+  rhythm: [["rhythm", "▶ Tap the rhythm", "primary"]],
+};
+
+export default function Home({ nodes, me, settings, onSettings, onStart, onStats, onLogout, onSignup }) {
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -26,7 +35,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onLogou
           <section className="card node" key={node.id}>
             <div className="node-head">
               <h2>
-                {node.clef === "bass" ? "𝄢 " : "𝄞 "}
+                {node.kind === "rhythm" ? "𝅘𝅥𝅮 " : node.clef === "bass" ? "𝄢 " : "𝄞 "}
                 {node.title}
               </h2>
               <span className="node-stats">
@@ -44,18 +53,20 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onLogou
             </div>
             <p>{node.blurb}</p>
             <div className="row">
-              <button className="btn primary" onClick={() => onStart(node, "note")}>
-                ▶ Read notes
-              </button>
-              <button className="btn" onClick={() => onStart(node, "linespace")}>
-                Line or space?
-              </button>
+              {DRILLS[node.kind ?? "notes"].map(([drill, label, cls]) => (
+                <button key={drill} className={`btn ${cls}`} onClick={() => onStart(node, drill)}>
+                  {label}
+                </button>
+              ))}
             </div>
           </section>
         ))}
       </div>
 
       <div className="row">
+        {onStats && (
+          <button className="btn quiet" onClick={onStats}>📊 My stats</button>
+        )}
         <button className="btn quiet" onClick={() => setShowSettings(s => !s)}>
           ⚙ Settings
         </button>

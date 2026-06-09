@@ -64,4 +64,5 @@ class Attempt(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     item_key: Mapped[str] = mapped_column(String)
     hit: Mapped[bool] = mapped_column(default=False)
+    played: Mapped[int | None] = mapped_column(nullable=True)  # midi of the wrong answer
     ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

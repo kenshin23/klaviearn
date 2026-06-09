@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Auth from "./screens/Auth.jsx";
 import Home from "./screens/Home.jsx";
-import Session from "./screens/Session.jsx";
+import Stats from "./screens/Stats.jsx";
+
+// Session pulls in VexFlow (~1MB) — load it only when practice starts.
+const Session = lazy(() => import("./screens/Session.jsx"));
 import { api, getToken, setToken } from "./lib/api.js";
 import { SKILL_NODES } from "./lib/notes.js";
 import { buildSession } from "./lib/session.js";
@@ -104,15 +107,21 @@ export default function App() {
     return <Auth onAuthed={refreshOnline} onGuest={enterGuest} />;
   }
 
+  if (screen.name === "stats") {
+    return <Stats onHome={() => setScreen({ name: "home" })} />;
+  }
+
   if (screen.name === "session") {
     return (
-      <Session
-        key={screen.startedAt}
-        exercises={screen.exercises}
-        settings={settings}
-        onFinish={finishSession}
-        onHome={() => setScreen({ name: "home" })}
-      />
+      <Suspense fallback={<main className="screen"><p className="status">…</p></main>}>
+        <Session
+          key={screen.startedAt}
+          exercises={screen.exercises}
+          settings={settings}
+          onFinish={finishSession}
+          onHome={() => setScreen({ name: "home" })}
+        />
+      </Suspense>
     );
   }
 
@@ -128,6 +137,7 @@ export default function App() {
       settings={settings}
       onSettings={updateSettings}
       onStart={startSession}
+      onStats={online ? () => setScreen({ name: "stats" }) : null}
       onLogout={online ? () => { setToken(null); setMe(null); setTree(null); setAuth({ status: "choose" }); } : null}
       onSignup={!online ? () => setAuth({ status: "choose" }) : null}
     />

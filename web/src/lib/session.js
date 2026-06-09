@@ -1,9 +1,11 @@
 // Guest-mode session builder. Logged in, the server builds sessions with
 // the real SRS; this is the offline approximation. Both produce the same
-// exercise shape: { item, drill, level, midi, clef, key, letter, pos, posLabel }.
-import { itemKey, noteMeta } from "./notes.js";
+// exercise shapes.
+import { itemKey, noteMeta, RHYTHM_PATTERNS } from "./notes.js";
 
 export const SESSION_LENGTH = 10;
+export const PHRASE_COUNT = 5;
+export const PHRASE_NOTES = 4;
 
 function weightFor(stats) {
   if (!stats || stats.seen === 0) return 2.5;
@@ -12,23 +14,50 @@ function weightFor(stats) {
 }
 
 export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
-  const pool = node.midis.map(midi => {
-    const item = itemKey(node.clef, midi);
-    return { item, meta: noteMeta(node.clef, midi), weight: weightFor(noteStats[item]) };
-  });
-  const exercises = [];
-  let prev = null;
-  for (let i = 0; i < length; i++) {
+  const pool =
+    node.kind === "rhythm"
+      ? node.patterns.map(pid => ({
+          item: `rhythm:${pid}`,
+          meta: { name: RHYTHM_PATTERNS[pid].name, durations: RHYTHM_PATTERNS[pid].durations },
+          weight: weightFor(noteStats[`rhythm:${pid}`]),
+        }))
+      : node.midis.map(midi => {
+          const item = itemKey(node.clef, midi);
+          return { item, meta: noteMeta(node.clef, midi), weight: weightFor(noteStats[item]) };
+        });
+
+  function pick(prev) {
     const candidates = pool.length > 1 && prev ? pool.filter(c => c.item !== prev) : pool;
     const total = candidates.reduce((sum, c) => sum + c.weight, 0);
     let r = Math.random() * total;
-    let picked = candidates[candidates.length - 1];
     for (const c of candidates) {
       r -= c.weight;
-      if (r <= 0) { picked = c; break; }
+      if (r <= 0) return c;
     }
-    exercises.push({ item: picked.item, drill, level: 0, ...picked.meta });
-    prev = picked.item;
+    return candidates[candidates.length - 1];
+  }
+
+  if (drill === "phrase") {
+    const exercises = [];
+    for (let i = 0; i < PHRASE_COUNT; i++) {
+      const notes = [];
+      let prev = null;
+      for (let j = 0; j < PHRASE_NOTES; j++) {
+        const p = pick(prev);
+        prev = p.item;
+        notes.push({ item: p.item, level: 0, ...p.meta });
+      }
+      exercises.push({ drill: "phrase", level: 0, notes });
+    }
+    return exercises;
+  }
+
+  const exercises = [];
+  let prev = null;
+  for (let i = 0; i < length; i++) {
+    const p = pick(prev);
+    prev = p.item;
+    exercises.push({ item: p.item, drill, level: 0, ...p.meta });
   }
   return exercises;
 }

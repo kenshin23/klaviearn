@@ -88,6 +88,44 @@ def tree(user=Depends(current_user), db=Depends(get_db)):
     return {"nodes": nodes}
 
 
+@router.get("/stats")
+def stats(user=Depends(current_user), db=Depends(get_db)):
+    items = db.scalars(
+        select(ItemSRS).where(ItemSRS.user_id == user.id).order_by(ItemSRS.item_key)
+    ).all()
+    confusions = db.execute(
+        select(Attempt.item_key, Attempt.played, func.count().label("n"))
+        .where(
+            Attempt.user_id == user.id,
+            Attempt.hit.is_(False),
+            Attempt.played.is_not(None),
+        )
+        .group_by(Attempt.item_key, Attempt.played)
+        .order_by(func.count().desc())
+        .limit(12)
+    ).all()
+    return {
+        "items": [
+            {
+                "item": s.item_key,
+                "seen": s.seen,
+                "correct": s.correct,
+                "level": s.level,
+                "streak": s.streak,
+            }
+            for s in items
+        ],
+        "confusions": [
+            {"item": item, "played": played, "count": n} for item, played, n in confusions
+        ],
+        "sessionCount": db.scalar(
+            select(func.count()).select_from(SessionRecord).where(SessionRecord.user_id == user.id)
+        ),
+        "xp": xp_total(db, user.id),
+        "streakDays": day_streak(db, user.id),
+    }
+
+
 class SessionStart(BaseModel):
     node_id: str
     drill: str
@@ -96,6 +134,7 @@ class SessionStart(BaseModel):
 class ResultIn(BaseModel):
     item: str = Field(max_length=32)
     hit: bool
+    played: int | None = Field(default=None, ge=0, le=127)  # midi of a wrong answer
 
 
 class SessionComplete(BaseModel):
@@ -105,11 +144,16 @@ class SessionComplete(BaseModel):
     results: list[ResultIn] = Field(max_length=50)
 
 
+DRILLS_BY_KIND = {"notes": {"note", "linespace", "phrase"}, "rhythm": {"rhythm"}}
+
+
 @router.post("/sessions")
 def start_session(body: SessionStart, user=Depends(current_user), db=Depends(get_db)):
     node = NODE_BY_ID.get(body.node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Unknown skill node")
+    if body.drill not in DRILLS_BY_KIND[node.get("kind", "notes")]:
+        raise HTTPException(status_code=422, detail="That drill doesn't fit this skill node")
     return {"exercises": srs.build_session(db, user.id, node, body.drill)}
 
 
@@ -127,7 +171,7 @@ def complete_session(body: SessionComplete, user=Depends(current_user), db=Depen
     by_item: dict[str, list[bool]] = {}
     for r in body.results:
         by_item.setdefault(r.item, []).append(r.hit)
-        db.add(Attempt(user_id=user.id, item_key=r.item, hit=r.hit))
+        db.add(Attempt(user_id=user.id, item_key=r.item, hit=r.hit, played=r.played))
         ok += r.hit
     for item, hits in by_item.items():
         srs.record_review(srs.get_or_create(db, user.id, item), hits)

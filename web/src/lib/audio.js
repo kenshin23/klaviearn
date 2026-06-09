@@ -23,4 +23,19 @@ export const chimeCorrect = () => {
   tone(1318.5, 0.25, "sine", 0.12);
 };
 export const chimeWrong = () => tone(110, 0.3, "square", 0, 0.12);
+export const tick = () => tone(1568, 0.06, "sine", 0, 0.15); // mid-phrase progress
 export const playMidi = m => tone(midiToFreq(m), 0.9, "triangle");
+
+// Metronome click scheduled on the audio clock (precise, unlike setTimeout).
+export function click(when, accent = false) {
+  const ctx = audioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = accent ? 1760 : 1175;
+  gain.gain.setValueAtTime(accent ? 0.3 : 0.18, when);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(when);
+  osc.stop(when + 0.08);
+}

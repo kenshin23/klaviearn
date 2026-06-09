@@ -32,6 +32,21 @@ export const NOTES = {
   },
 };
 
+// One bar of 4/4 each. VexFlow duration codes; "qr" is a quarter rest.
+export const RHYTHM_PATTERNS = {
+  "r-quarters":  { name: "Four steady quarters",        durations: ["q", "q", "q", "q"] },
+  "r-half-2q":   { name: "A half, then two quarters",   durations: ["h", "q", "q"] },
+  "r-2q-half":   { name: "Two quarters, then a half",   durations: ["q", "q", "h"] },
+  "r-halves":    { name: "Two halves",                  durations: ["h", "h"] },
+  "r-whole":     { name: "One whole note",              durations: ["w"] },
+  "r-8ths-1":    { name: "Eighth pairs, then quarters", durations: ["8", "8", "8", "8", "q", "q"] },
+  "r-8ths-2":    { name: "Eighths in the middle",       durations: ["q", "8", "8", "q", "q"] },
+  "r-8ths-3":    { name: "Eighths on two and four",     durations: ["q", "8", "8", "q", "8", "8"] },
+  "r-rest-1":    { name: "Rest on beat two",            durations: ["q", "qr", "q", "q"] },
+  "r-rest-2":    { name: "Rest on beat three",          durations: ["q", "q", "qr", "q"] },
+  "r-rest-3":    { name: "A half, a rest, a quarter",   durations: ["h", "qr", "q"] },
+};
+
 export const SKILL_NODES = [
   {
     id: "guide",
@@ -75,10 +90,35 @@ export const SKILL_NODES = [
     clef: "bass",
     midis: [48, 50, 52, 53, 55, 57, 59, 60],
   },
+  {
+    id: "rhythm-steady",
+    kind: "rhythm",
+    title: "Steady rhythms",
+    blurb: "Quarters, halves, and wholes — tap them against the metronome.",
+    patterns: ["r-quarters", "r-half-2q", "r-2q-half", "r-halves", "r-whole"],
+  },
+  {
+    id: "rhythm-eighths",
+    kind: "rhythm",
+    title: "Eighth notes",
+    blurb: "Two taps to a beat.",
+    patterns: ["r-8ths-1", "r-8ths-2", "r-8ths-3"],
+  },
+  {
+    id: "rhythm-rests",
+    kind: "rhythm",
+    title: "Rests",
+    blurb: "The notes you don't play matter too.",
+    patterns: ["r-rest-1", "r-rest-2", "r-rest-3"],
+  },
 ];
 
 export const itemKey = (clef, midi) => `${clef}:${midi}`;
 export const noteMeta = (clef, midi) => ({ ...NOTES[clef][midi], clef });
+export const nodeItemKeys = node =>
+  node.kind === "rhythm"
+    ? node.patterns.map(p => `rhythm:${p}`)
+    : node.midis.map(m => itemKey(node.clef, m));
 
 export const LETTER_TO_MIDI = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 };
 
