@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node (Phase 1+)
+node_modules/
+dist/
+
+# Local env/editor
+.env
+.env.*
+.idea/
+.vscode/
