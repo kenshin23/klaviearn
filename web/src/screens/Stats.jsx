@@ -6,9 +6,13 @@ function itemLabel(item) {
   if (item.startsWith("rhythm:")) {
     return RHYTHM_PATTERNS[item.slice(7)]?.name ?? item;
   }
-  const [clef, midi] = item.split(":");
+  if (item.startsWith("int:")) {
+    return `Interval: ${{ 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" }[item.slice(4)] ?? item.slice(4)}`;
+  }
+  const grand = item.startsWith("grand:");
+  const [clef, midi] = (grand ? item.slice(6) : item).split(":");
   const meta = NOTES[clef]?.[midi];
-  return meta ? `${meta.letter} — ${clef} ${meta.posLabel}` : item;
+  return meta ? `${meta.letter} — ${grand ? "grand staff, " : ""}${clef} ${meta.posLabel}` : item;
 }
 
 const WHEELS = ["letters + colors", "colors only", "plain notation"];

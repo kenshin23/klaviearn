@@ -1,5 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import Staff from "../components/Staff.jsx";
+import GrandStaff from "../components/GrandStaff.jsx";
+import IntervalStaff from "../components/IntervalStaff.jsx";
 import PhraseStaff from "../components/PhraseStaff.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
 import RhythmPlay from "../components/RhythmPlay.jsx";
@@ -140,6 +142,22 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     }
   }
 
+  function answerInterval(size) {
+    const { state, exercise } = live.current;
+    if (state.phase !== "listen" || exercise.drill !== "interval") return;
+    if (size === exercise.size) {
+      chimeCorrect();
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
+        message: `Yes — a ${exercise.name}.`,
+      });
+    } else {
+      chimeWrong();
+      dispatch({ type: "wrong", message: "Look at the gap between the noteheads and try again." });
+    }
+  }
+
   function rhythmAttempt(hit) {
     const { state, exercise } = live.current;
     if (state.phase !== "listen") return;
@@ -183,6 +201,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       }
       if (k === "L") answerPos("line");
       if (k === "S") answerPos("space");
+      if ("2345".includes(k) && k.length === 1) answerInterval(Number(k));
       if ((e.key === " " || e.key === "Enter") && live.current.exercise.drill === "rhythm") {
         e.preventDefault();
         tapRef.current?.();
@@ -257,6 +276,14 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
         ) : exercise.drill === "rhythm" ? (
           <RhythmStaff durations={exercise.durations} />
+        ) : exercise.drill === "interval" ? (
+          <IntervalStaff notes={exercise.notes} />
+        ) : exercise.grand ? (
+          <GrandStaff
+            exercise={exercise}
+            showLetter={scaffold.letters}
+            showColor={scaffold.colors}
+          />
         ) : (
           <Staff
             exercise={exercise}
@@ -273,6 +300,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             phrase: "Play the phrase, left to right.",
             linespace: "Is this note on a line, or in a space?",
             rhythm: "Tap this rhythm with the metronome.",
+            interval: "How far apart are these notes?",
           }[exercise.drill]}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -307,6 +335,16 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         <div className="row linespace">
           <button className="btn answer" onClick={() => answerPos("line")}>── Line ──</button>
           <button className="btn answer" onClick={() => answerPos("space")}>‿ Space ‿</button>
+        </div>
+      )}
+
+      {exercise.drill === "interval" && (
+        <div className="row">
+          {[2, 3, 4, 5].map(size => (
+            <button key={size} className="btn answer" onClick={() => answerInterval(size)}>
+              {{ 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" }[size]}
+            </button>
+          ))}
         </div>
       )}
 

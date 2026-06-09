@@ -144,7 +144,12 @@ class SessionComplete(BaseModel):
     results: list[ResultIn] = Field(max_length=50)
 
 
-DRILLS_BY_KIND = {"notes": {"note", "linespace", "phrase"}, "rhythm": {"rhythm"}}
+DRILLS_BY_KIND = {
+    "notes": {"note", "linespace", "phrase"},
+    "rhythm": {"rhythm"},
+    "intervals": {"interval"},
+    "grand": {"note"},
+}
 
 
 @router.post("/sessions")

@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
-from .content import node_items
+from .content import NOTES, node_items
 from .models import ItemSRS, utcnow
 
 SESSION_LENGTH = 10
@@ -111,6 +111,27 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
             if r <= 0:
                 return c
         return candidates[-1]
+
+    if drill == "interval":
+        # Two notes on the treble staff; name the distance. The base note is
+        # random so the answer is the shape, not a memorized picture.
+        scale = sorted(NOTES["treble"].keys())
+        exercises = []
+        prev = None
+        for _ in range(length):
+            p = pick(prev)
+            prev = p["item"]
+            size = p["meta"]["size"]
+            base = random.randint(0, len(scale) - size)
+            pair = [
+                {**NOTES["treble"][scale[base]], "clef": "treble"},
+                {**NOTES["treble"][scale[base + size - 1]], "clef": "treble"},
+            ]
+            exercises.append(
+                {"item": p["item"], "drill": "interval", "level": p["level"],
+                 "size": size, "name": p["meta"]["name"], "notes": pair}
+            )
+        return exercises
 
     if drill == "phrase":
         # Micro sight-reading: 5 phrases of 4 notes, read left to right.

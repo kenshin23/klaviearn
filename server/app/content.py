@@ -116,6 +116,19 @@ SKILL_NODES = [
         "blurb": "The notes you don't play matter too.",
         "patterns": ["r-rest-1", "r-rest-2", "r-rest-3"],
     },
+    {
+        "id": "intervals",
+        "kind": "intervals",
+        "title": "Intervals as shapes",
+        "blurb": "Stop counting lines — see the distance. Fluent readers read jumps, not letters.",
+        "sizes": [2, 3, 4, 5],
+    },
+    {
+        "id": "grand",
+        "kind": "grand",
+        "title": "The grand staff",
+        "blurb": "Both staves together — middle C is the bridge between your hands.",
+    },
 ]
 
 NODE_BY_ID = {n["id"]: n for n in SKILL_NODES}
@@ -125,15 +138,30 @@ def item_key(clef: str, midi: int) -> str:
     return f"{clef}:{midi}"
 
 
+INTERVAL_NAMES = {2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
+
+
 def node_items(node):
     """[(item_key, exercise-metadata), ...] for one skill node."""
-    if node.get("kind") == "rhythm":
+    kind = node.get("kind", "notes")
+    if kind == "rhythm":
         return [
             (
                 f"rhythm:{pid}",
                 {"name": RHYTHM_PATTERNS[pid]["name"], "durations": RHYTHM_PATTERNS[pid]["durations"]},
             )
             for pid in node["patterns"]
+        ]
+    if kind == "intervals":
+        return [
+            (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
+            for size in node["sizes"]
+        ]
+    if kind == "grand":
+        return [
+            (f"grand:{clef}:{midi}", {**NOTES[clef][midi], "clef": clef, "grand": True})
+            for clef in ("treble", "bass")
+            for midi in NOTES[clef]
         ]
     out = []
     for midi in node["midis"]:

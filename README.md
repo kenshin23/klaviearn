@@ -31,11 +31,14 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phase 2 (learning engine)** — a FastAPI backend in [`server/`](server/)
-with accounts, real spaced repetition (SM-2 variant, one review per item per
-session), per-note scaffold fading, XP and day streaks, and a skill tree that
-now spans both clefs. The React app in [`web/`](web/) works logged-in
-(server is the source of truth) or as an offline guest (localStorage).
+**Phases 1–4 built.** A FastAPI backend in [`server/`](server/) with
+accounts, spaced repetition (SM-2 variant), per-note scaffold fading, XP and
+day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
+works logged-in (server is the source of truth) or as an offline guest
+(localStorage). Eleven skill nodes across six drills: note reading (treble,
+bass, and grand staff), line-or-space discrimination, 4-note phrase reading,
+interval recognition, and metronome rhythm tapping. A stats dashboard shows
+your confusion matrix ("seeing C, you played D ×3") and per-note accuracy.
 
 ```bash
 # API (Python 3.11 via asdf — see .tool-versions)
@@ -75,7 +78,10 @@ python3 -m http.server 8000 --directory phase0
 ## Roadmap
 
 1. ~~**Phase 0** — proof-of-concept spike (notation + piano input + feedback)~~ ✅
-2. **Phase 1** — playable core: React app, note drills, settings, local progress
-3. **Phase 2** — learning engine: accounts, spaced repetition, skill tree, streaks
-4. **Phase 3** — real sight reading: metronome phrases, grand staff, PWA polish
-5. **Phase 4** — acoustic-piano mic mode, real repertoire, error-pattern stats
+2. ~~**Phase 1** — playable core: React app, note drills, settings, local progress~~ ✅
+3. ~~**Phase 2** — learning engine: accounts, spaced repetition, skill tree, streaks~~ ✅
+4. ~~**Phase 3** — rhythm + metronome, phrase reading, intervals, grand staff, PWA~~ ✅
+5. ~~**Phase 4** — error-pattern stats (confusion matrix), mic input~~ ✅
+6. **Next** — timed phrase reading against the metronome, hands-together grand
+   staff phrases, real-repertoire excerpts, tempo/tolerance settings — all
+   tuned by feedback from real practice.

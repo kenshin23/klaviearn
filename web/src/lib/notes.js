@@ -111,14 +111,39 @@ export const SKILL_NODES = [
     blurb: "The notes you don't play matter too.",
     patterns: ["r-rest-1", "r-rest-2", "r-rest-3"],
   },
+  {
+    id: "intervals",
+    kind: "intervals",
+    title: "Intervals as shapes",
+    blurb: "Stop counting lines — see the distance. Fluent readers read jumps, not letters.",
+    sizes: [2, 3, 4, 5],
+  },
+  {
+    id: "grand",
+    kind: "grand",
+    title: "The grand staff",
+    blurb: "Both staves together — middle C is the bridge between your hands.",
+  },
 ];
+
+export const INTERVAL_NAMES = { 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
 
 export const itemKey = (clef, midi) => `${clef}:${midi}`;
 export const noteMeta = (clef, midi) => ({ ...NOTES[clef][midi], clef });
-export const nodeItemKeys = node =>
-  node.kind === "rhythm"
-    ? node.patterns.map(p => `rhythm:${p}`)
-    : node.midis.map(m => itemKey(node.clef, m));
+export const nodeItemKeys = node => {
+  switch (node.kind) {
+    case "rhythm":
+      return node.patterns.map(p => `rhythm:${p}`);
+    case "intervals":
+      return node.sizes.map(s => `int:${s}`);
+    case "grand":
+      return ["treble", "bass"].flatMap(clef =>
+        Object.keys(NOTES[clef]).map(m => `grand:${clef}:${m}`),
+      );
+    default:
+      return node.midis.map(m => itemKey(node.clef, m));
+  }
+};
 
 export const LETTER_TO_MIDI = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 };
 

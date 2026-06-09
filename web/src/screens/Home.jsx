@@ -10,6 +10,8 @@ const DRILLS = {
     ["linespace", "Line or space?", ""],
   ],
   rhythm: [["rhythm", "▶ Tap the rhythm", "primary"]],
+  intervals: [["interval", "▶ Name the interval", "primary"]],
+  grand: [["note", "▶ Read notes", "primary"]],
 };
 
 export default function Home({ nodes, me, settings, onSettings, onStart, onStats, onLogout, onSignup }) {
@@ -35,7 +37,10 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
           <section className="card node" key={node.id}>
             <div className="node-head">
               <h2>
-                {node.kind === "rhythm" ? "𝅘𝅥𝅮 " : node.clef === "bass" ? "𝄢 " : "𝄞 "}
+                {node.kind === "rhythm" ? "𝅘𝅥𝅮 "
+                  : node.kind === "intervals" ? "⤢ "
+                  : node.kind === "grand" ? "𝄞𝄢 "
+                  : node.clef === "bass" ? "𝄢 " : "𝄞 "}
                 {node.title}
               </h2>
               <span className="node-stats">
