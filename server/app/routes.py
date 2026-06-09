@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from . import srs
@@ -94,14 +94,15 @@ class SessionStart(BaseModel):
 
 
 class ResultIn(BaseModel):
-    item: str
+    item: str = Field(max_length=32)
     hit: bool
 
 
 class SessionComplete(BaseModel):
     node_id: str
     drill: str
-    results: list[ResultIn]
+    # Generous bound: sessions are 10 exercises; this only stops abuse.
+    results: list[ResultIn] = Field(max_length=50)
 
 
 @router.post("/sessions")
@@ -116,6 +117,12 @@ def start_session(body: SessionStart, user=Depends(current_user), db=Depends(get
 def complete_session(body: SessionComplete, user=Depends(current_user), db=Depends(get_db)):
     if not body.results:
         raise HTTPException(status_code=422, detail="No results")
+    node = NODE_BY_ID.get(body.node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Unknown skill node")
+    valid_items = {k for k, _ in node_items(node)}
+    if any(r.item not in valid_items for r in body.results):
+        raise HTTPException(status_code=422, detail="Result items don't belong to that skill node")
     ok = 0
     by_item: dict[str, list[bool]] = {}
     for r in body.results:

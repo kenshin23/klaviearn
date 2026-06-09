@@ -1,9 +1,11 @@
 import os
+import time
+from collections import defaultdict, deque
 from datetime import timedelta
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -11,12 +13,35 @@ from sqlalchemy import select
 from .db import get_db
 from .models import User, utcnow
 
-SECRET = os.environ.get("KLAVIEARN_SECRET", "dev-secret-change-before-deploying")
+# A fixed fallback secret is only acceptable on a dev machine; any deployed
+# instance must bring its own (e.g. `openssl rand -hex 32`).
+ENV = os.environ.get("KLAVIEARN_ENV", "dev")
+SECRET = os.environ.get("KLAVIEARN_SECRET")
+if not SECRET:
+    if ENV != "dev":
+        raise RuntimeError("KLAVIEARN_SECRET must be set when KLAVIEARN_ENV is not 'dev'")
+    SECRET = "dev-secret-not-for-production"
 ALGO = "HS256"
 TOKEN_DAYS = 30
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer()
+
+# Per-IP sliding-window rate limit on the auth endpoints: makes credential
+# brute-forcing and email enumeration impractical.
+RATE_LIMIT, RATE_WINDOW_S = 10, 60
+_attempts: dict[str, deque] = defaultdict(deque)
+
+
+def rate_limit(request: Request):
+    ip = request.client.host if request.client else "unknown"
+    window = _attempts[ip]
+    now = time.monotonic()
+    while window and now - window[0] > RATE_WINDOW_S:
+        window.popleft()
+    if len(window) >= RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Too many attempts — try again in a minute")
+    window.append(now)
 
 
 class Credentials(BaseModel):
@@ -47,7 +72,7 @@ def current_user(
     return user
 
 
-@router.post("/register", response_model=TokenOut)
+@router.post("/register", response_model=TokenOut, dependencies=[Depends(rate_limit)])
 def register(body: Credentials, db=Depends(get_db)):
     email = body.email.strip().lower()
     if "@" not in email or len(email) < 5:
@@ -65,7 +90,7 @@ def register(body: Credentials, db=Depends(get_db)):
     return TokenOut(token=make_token(user.id), email=user.email)
 
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=TokenOut, dependencies=[Depends(rate_limit)])
 def login(body: Credentials, db=Depends(get_db)):
     user = db.scalar(select(User).where(User.email == body.email.strip().lower()))
     if not user or not bcrypt.checkpw(body.password.encode(), user.pw_hash.encode()):
