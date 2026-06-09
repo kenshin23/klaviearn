@@ -52,6 +52,11 @@ is vendored.
 | Piano input | Web MIDI (webmidi.js) · microphone pitch detection · on-screen keys |
 | Audio | WebAudio + soundfont playback |
 
+## License
+
+[AGPL-3.0](LICENSE). The vendored `phase0/vexflow.js` is
+[VexFlow](https://github.com/0xfe/vexflow), MIT-licensed by its authors.
+
 ## Roadmap
 
 1. ~~**Phase 0** — proof-of-concept spike (notation + piano input + feedback)~~ ✅
