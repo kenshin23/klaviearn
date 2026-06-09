@@ -37,6 +37,7 @@ via microphone, MIDI, or on-screen keys, a settings panel for the visual
 scaffolds, and progress persisted locally.
 
 ```bash
+# Node 24 (see .nvmrc — `nvm use` picks it up)
 cd web
 npm install
 npm run dev
