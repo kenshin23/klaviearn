@@ -184,6 +184,7 @@ h2 {
   font-weight: 700;
   font-size: 26px;
   color: var(--ok-bright);
+  white-space: nowrap;
 }
 
 .summary { text-align: center; }
@@ -213,11 +214,12 @@ h2 {
   border-radius: 999px; padding: 6px 16px;
   font-weight: 700; font-size: 20px;
 }
-.node-stats { display: flex; gap: 12px; align-items: baseline; }
+.node-stats { display: flex; gap: 12px; align-items: baseline; flex-shrink: 0; }
 .due {
   background: var(--gold); color: #221a08;
   border-radius: 999px; padding: 3px 12px;
   font-weight: 700; font-size: 17px;
+  white-space: nowrap;
 }
 .reward { font-size: 26px; font-weight: 700; color: var(--ok-bright); margin: 0 0 8px; }
 
