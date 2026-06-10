@@ -33,7 +33,9 @@ export default function App() {
         .then(([m, t]) => {
           setMe(m);
           setTree(t.nodes);
-          setSettings(m.settings);
+          // Server settings win where saved, but presentation defaults
+          // (language, note names) come from the browser until then.
+          setSettings({ ...DEFAULT_SETTINGS, ...m.settings });
           setAuth({ status: "online" });
         })
         .catch(() => {
@@ -58,7 +60,7 @@ export default function App() {
     const [m, t] = await Promise.all([api.me(), api.tree()]);
     setMe(m);
     setTree(t.nodes);
-    setSettings(m.settings);
+    setSettings({ ...DEFAULT_SETTINGS, ...m.settings });
     setAuth({ status: "online" });
   }
 
