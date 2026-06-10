@@ -47,6 +47,17 @@ export default function SettingsPanel({ settings, onChange }) {
         {t("Strict octave (piano input must match the exact octave)")}
       </label>
       <label className="toggle">
+        {t("Microphone sensitivity")}
+        <select
+          value={settings.micSensitivity}
+          onChange={e => set({ micSensitivity: e.target.value })}
+        >
+          <option value="high">{t("High — quiet or distant piano")}</option>
+          <option value="normal">{t("Normal")}</option>
+          <option value="low">{t("Low — noisy room")}</option>
+        </select>
+      </label>
+      <label className="toggle">
         {t("Staff size")}
         <select value={settings.staffSize} onChange={e => set({ staffSize: e.target.value })}>
           <option value="medium">{t("Medium")}</option>

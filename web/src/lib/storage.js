@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   scaffold: "auto",    // auto (fade with mastery) | full | colors | plain
   strictOctave: false, // off: any octave counts (kind to mic detection)
   staffSize: "large",  // medium | large | huge
+  micSensitivity: "high", // low | normal | high — quiet travel pianos need high
   ...browserDefaults(), // language: en|es, noteNames: letters|solfege
 };
 

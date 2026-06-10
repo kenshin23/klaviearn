@@ -219,6 +219,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         audioContext: audioContext(),
         onNote: answerNote,
         onHearing: h => setMic(m => ({ ...m, hearing: h })),
+        sensitivity: settings.micSensitivity,
       });
       micStopRef.current = stop;
       setMic({ status: "listening", hearing: null });
@@ -304,7 +305,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
-            {mic.hearing ? `${t("Hearing:")} ${noteName(mic.hearing.midi)}` : t("Listening…")}
+            {mic.hearing == null
+              ? t("Listening…")
+              : mic.hearing.tooQuiet
+                ? t("Hearing something — too quiet. Play louder or move closer.")
+                : `${t("Hearing:")} ${noteName(mic.hearing.midi)}`}
           </span>
         )}
       </p>
