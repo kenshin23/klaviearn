@@ -46,8 +46,8 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
               </h2>
               <span className="node-stats">
                 {node.dueCount > 0 && (
-                  <span className="due" aria-label={`${node.dueCount} notes due for review`}>
-                    {node.dueCount} due
+                  <span className="due" aria-label={`${node.dueCount} ${t("due for review")}`}>
+                    {node.dueCount} {t(node.dueCount === 1 ? "due#one" : "due")}
                   </span>
                 )}
                 {node.accuracy != null && (

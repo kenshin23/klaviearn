@@ -29,12 +29,19 @@ export function noteName(midi) {
 }
 
 const STRINGS = {
-  en: {}, // English is the key itself — see t() below.
+  // Keys are the English display text, except a few "key#variant" entries
+  // that need an explicit English value (e.g. plural forms).
+  en: {
+    "due#one": "due",
+  },
   es: {
+    "due#one": "pendiente",
     "Sight reading, one giant note at a time.": "Lectura a primera vista, una nota gigante a la vez.",
     "session practiced": "sesión practicada",
     "sessions practiced": "sesiones practicadas",
     "-day streak": " días de racha",
+    "due": "pendientes",
+    "due for review": "pendientes de repaso",
     "▶ Read notes": "▶ Leer notas",
     "Read phrases": "Leer frases",
     "Line or space?": "¿Línea o espacio?",
@@ -124,7 +131,7 @@ const STRINGS = {
   },
 };
 
-export const t = key => (lang === "es" ? STRINGS.es[key] ?? key : key);
+export const t = key => STRINGS[lang][key] ?? STRINGS.en[key] ?? key;
 
 // --- Curriculum presentation, keyed by stable server ids ---
 
