@@ -1,0 +1,28 @@
+# Klaviearn as its own compose project, joining the host's existing
+# services_webnet so the main stack's nginx can reach it by name.
+name: klaviearn
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: klaviearn
+    restart: unless-stopped
+    environment:
+      KLAVIEARN_ENV: production
+      KLAVIEARN_SECRET: ${KLAVIEARN_SECRET:?set in .env}
+      KLAVIEARN_DB: /data/klaviearn.db
+      KLAVIEARN_WEB_DIST: /webdist
+    volumes:
+      - ./data:/data
+      - ./webdist:/webdist:ro
+    networks:
+      - webnet
+    labels:
+      # Locally built image — keep watchtower from trying to "update" it.
+      com.centurylinklabs.watchtower.enable: "false"
+
+networks:
+  webnet:
+    external: true
+    name: services_webnet

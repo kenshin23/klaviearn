@@ -1,6 +1,7 @@
 // Guest-mode persistence: one localStorage key. Logged in, the server owns
 // all of this and these helpers aren't used.
 import { itemKey } from "./notes.js";
+import { browserDefaults } from "./i18n.js";
 
 const KEY = "klaviearn.v1";
 
@@ -8,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   scaffold: "auto",    // auto (fade with mastery) | full | colors | plain
   strictOctave: false, // off: any octave counts (kind to mic detection)
   staffSize: "large",  // medium | large | huge
+  ...browserDefaults(), // language: en|es, noteNames: letters|solfege
 };
 
 const empty = () => ({ settings: { ...DEFAULT_SETTINGS }, noteStats: {}, sessions: [] });

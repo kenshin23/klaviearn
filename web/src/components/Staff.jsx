@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Renderer, Stave, StaveNote, Formatter, Annotation, AnnotationVerticalJustify } from "vexflow";
 import { LETTER_COLORS } from "../lib/notes.js";
+import { noteLabel } from "../lib/i18n.js";
 
 // One giant note on a staff (treble or bass). Size comes from the SVG
 // viewBox: we draw at 280×150 and let it fill the card, so staff lines and
@@ -31,8 +32,9 @@ export default function Staff({ exercise, showLetter, showColor }) {
       staveNote.setStyle({ fillStyle: c, strokeStyle: c });
     }
     if (showLetter) {
-      const ann = new Annotation(exercise.letter)
-        .setFont("Fraunces, Georgia, serif", 13, "bold")
+      const label = noteLabel(exercise.letter);
+      const ann = new Annotation(label)
+        .setFont("Fraunces, Georgia, serif", label.length > 1 ? 11 : 13, "bold")
         .setVerticalJustification(AnnotationVerticalJustify.BOTTOM);
       staveNote.addModifier(ann);
     }

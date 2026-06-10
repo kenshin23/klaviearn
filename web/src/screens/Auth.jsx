@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, setToken } from "../lib/api.js";
+import { t } from "../lib/i18n.js";
 
 export default function Auth({ onAuthed, onGuest }) {
   const [mode, setMode] = useState("login");
@@ -30,13 +31,13 @@ export default function Auth({ onAuthed, onGuest }) {
         <h1>
           Klavi<span className="accent">earn</span>
         </h1>
-        <p className="tagline">Sight reading, one giant note at a time.</p>
+        <p className="tagline">{t("Sight reading, one giant note at a time.")}</p>
       </header>
 
       <form className="card auth-form" onSubmit={submit}>
-        <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+        <h2>{mode === "login" ? t("Welcome back") : t("Create your account")}</h2>
         <label>
-          Email
+          {t("Email")}
           <input
             type="email"
             value={email}
@@ -46,7 +47,7 @@ export default function Auth({ onAuthed, onGuest }) {
           />
         </label>
         <label>
-          Password
+          {t("Password")}
           <input
             type="password"
             value={password}
@@ -58,19 +59,19 @@ export default function Auth({ onAuthed, onGuest }) {
         </label>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? "…" : mode === "login" ? "Log in" : "Sign up"}
+          {busy ? "…" : mode === "login" ? t("Log in") : t("Sign up")}
         </button>
         <button
           type="button"
           className="btn quiet"
           onClick={() => { setMode(m => (m === "login" ? "register" : "login")); setError(null); }}
         >
-          {mode === "login" ? "New here? Create an account" : "Have an account? Log in"}
+          {mode === "login" ? t("New here? Create an account") : t("Have an account? Log in")}
         </button>
       </form>
 
       <button className="btn quiet" onClick={onGuest}>
-        Practice without an account (progress stays on this device)
+        {t("Practice without an account (progress stays on this device)")}
       </button>
     </main>
   );

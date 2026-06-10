@@ -11,6 +11,7 @@ import { buildSession } from "./lib/session.js";
 import {
   loadState, saveState, recordAnswer, recordSession, nodeAccuracy, DEFAULT_SETTINGS,
 } from "./lib/storage.js";
+import { setLocale } from "./lib/i18n.js";
 
 const GUEST_KEY = "klaviearn.guest";
 
@@ -22,6 +23,9 @@ export default function App() {
   const [screen, setScreen] = useState({ name: "home" });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const localRef = useRef(null); // guest-mode persistent state
+
+  // Locale is module state read by t()/noteLabel(); set it before children render.
+  setLocale(settings.language, settings.noteNames);
 
   useEffect(() => {
     if (getToken()) {

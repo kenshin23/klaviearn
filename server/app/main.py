@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -26,3 +28,11 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(routes.router, prefix="/api")
+
+# In production one container serves everything: API under /api, and the
+# built frontend (mounted at KLAVIEARN_WEB_DIST) as the catch-all.
+_web_dist = os.environ.get("KLAVIEARN_WEB_DIST", "")
+if _web_dist and os.path.isdir(_web_dist):
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="web")

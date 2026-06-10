@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { audioContext, click } from "../lib/audio.js";
+import { rhythmName, t } from "../lib/i18n.js";
 
 export const BPM = 80;
 const COUNT_IN = 4;
@@ -108,26 +109,26 @@ export default function RhythmPlay({ exercise, onAttempt, registerTap }) {
   return (
     <div className="rhythm-play">
       <p className="rhythm-meta">
-        {exercise.name} · {BPM} bpm
+        {rhythmName(exercise.name)} · {BPM} {t("bpm")}
         {phase === "counting" && <strong className="count"> — {beat + 1}</strong>}
-        {phase === "tapping" && <strong className="count go"> — GO</strong>}
+        {phase === "tapping" && <strong className="count go"> — {t("GO")}</strong>}
       </p>
       {verdicts && (
         <p className="verdicts" aria-label="Timing per note">
           {verdicts.perOnset.map((v, i) => (
             <span key={i} className={`verdict ${v}`}>
-              {v === "ok" ? "✓" : v === "missed" ? "✗" : v === "early" ? "◂ early" : "late ▸"}
+              {v === "ok" ? "✓" : v === "missed" ? "✗" : v === "early" ? `◂ ${t("early")}` : `${t("late")} ▸`}
             </span>
           ))}
-          {verdicts.extras > 0 && <span className="verdict missed">+{verdicts.extras} extra</span>}
+          {verdicts.extras > 0 && <span className="verdict missed">+{verdicts.extras} {t("extra")}</span>}
         </p>
       )}
       <div className="row">
         <button className="btn primary" onClick={start} disabled={phase === "counting" || phase === "tapping"}>
-          ▶ {phase === "scored" || phase === "idle" ? "Count-in & tap" : "Counting…"}
+          {phase === "scored" || phase === "idle" ? t("▶ Count-in & tap") : t("▶ Counting…")}
         </button>
         <button className="btn" onClick={hearIt} disabled={phase === "counting" || phase === "tapping"}>
-          🔊 Hear it
+          {t("🔊 Hear it")}
         </button>
       </div>
       <button
@@ -136,7 +137,7 @@ export default function RhythmPlay({ exercise, onAttempt, registerTap }) {
         disabled={phase !== "counting" && phase !== "tapping"}
         aria-label="Tap the rhythm here"
       >
-        TAP — or spacebar, or any piano key
+        {t("TAP — or spacebar, or any piano key")}
       </button>
     </div>
   );

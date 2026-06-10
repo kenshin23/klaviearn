@@ -1,5 +1,6 @@
 import { useState } from "react";
 import SettingsPanel from "../components/SettingsPanel.jsx";
+import { nodeText, t } from "../lib/i18n.js";
 
 // `nodes` carries optional server stats (accuracy, dueCount, mastery);
 // guest mode passes the same shape with only accuracy filled in.
@@ -23,11 +24,11 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
         <h1>
           Klavi<span className="accent">earn</span>
         </h1>
-        <p className="tagline">Sight reading, one giant note at a time.</p>
+        <p className="tagline">{t("Sight reading, one giant note at a time.")}</p>
         {me && (
           <p className="chips">
             <span className="chip">⭐ {me.xp} XP</span>
-            <span className="chip">🔥 {me.streakDays}-day streak</span>
+            <span className="chip">🔥 {me.streakDays}{t("-day streak")}</span>
           </p>
         )}
       </header>
@@ -41,7 +42,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
                   : node.kind === "intervals" ? "⤢ "
                   : node.kind === "grand" ? "𝄞𝄢 "
                   : node.clef === "bass" ? "𝄢 " : "𝄞 "}
-                {node.title}
+                {nodeText(node).title}
               </h2>
               <span className="node-stats">
                 {node.dueCount > 0 && (
@@ -56,11 +57,11 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
                 )}
               </span>
             </div>
-            <p>{node.blurb}</p>
+            <p>{nodeText(node).blurb}</p>
             <div className="row">
               {DRILLS[node.kind ?? "notes"].map(([drill, label, cls]) => (
                 <button key={drill} className={`btn ${cls}`} onClick={() => onStart(node, drill)}>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -70,17 +71,17 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
 
       <div className="row">
         {onStats && (
-          <button className="btn quiet" onClick={onStats}>📊 My stats</button>
+          <button className="btn quiet" onClick={onStats}>{t("📊 My stats")}</button>
         )}
         <button className="btn quiet" onClick={() => setShowSettings(s => !s)}>
-          ⚙ Settings
+          {t("⚙ Settings")}
         </button>
         {onLogout && (
-          <button className="btn quiet" onClick={onLogout}>Log out</button>
+          <button className="btn quiet" onClick={onLogout}>{t("Log out")}</button>
         )}
         {onSignup && (
           <button className="btn quiet" onClick={onSignup}>
-            Create account to sync progress
+            {t("Create account to sync progress")}
           </button>
         )}
       </div>

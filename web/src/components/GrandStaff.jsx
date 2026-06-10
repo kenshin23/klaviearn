@@ -4,6 +4,7 @@ import {
   Annotation, AnnotationVerticalJustify,
 } from "vexflow";
 import { LETTER_COLORS } from "../lib/notes.js";
+import { noteLabel } from "../lib/i18n.js";
 
 // Treble and bass braced together; the note lands on whichever staff the
 // exercise says — reading WHICH staff is part of the skill.
@@ -37,8 +38,9 @@ export default function GrandStaff({ exercise, showLetter, showColor }) {
       staveNote.setStyle({ fillStyle: c, strokeStyle: c });
     }
     if (showLetter) {
-      const ann = new Annotation(exercise.letter)
-        .setFont("Fraunces, Georgia, serif", 12, "bold")
+      const label = noteLabel(exercise.letter);
+      const ann = new Annotation(label)
+        .setFont("Fraunces, Georgia, serif", label.length > 1 ? 10 : 12, "bold")
         .setVerticalJustification(
           exercise.clef === "bass" ? AnnotationVerticalJustify.TOP : AnnotationVerticalJustify.BOTTOM,
         );

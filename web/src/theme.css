@@ -135,7 +135,8 @@ h2 {
   background: var(--key-color);
   border: none;
   border-radius: 14px;
-  width: 76px;
+  min-width: 76px;
+  padding: 0 12px;
   min-height: 68px;
   cursor: pointer;
   box-shadow: var(--shadow-press);
@@ -278,6 +279,6 @@ h2 {
 
 @media (max-width: 560px) {
   html, body { font-size: 19px; }
-  .key { width: 60px; min-height: 60px; font-size: 26px; }
+  .key { min-width: 56px; padding: 0 9px; min-height: 60px; font-size: 24px; }
   .node .row { justify-content: center; }
 }

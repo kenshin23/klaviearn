@@ -6,7 +6,7 @@ import PhraseStaff from "../components/PhraseStaff.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
 import RhythmPlay from "../components/RhythmPlay.jsx";
 import Keys from "../components/Keys.jsx";
-import { noteName } from "../lib/notes.js";
+import { noteLabel, noteName, posLabel, rhythmName, t } from "../lib/i18n.js";
 import { audioContext, chimeCorrect, chimeWrong, tick, playMidi } from "../lib/audio.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
@@ -99,7 +99,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             hit: !(i in phrase.misses),
             played: phrase.misses[i] ?? null,
           }));
-          dispatch({ type: "correct", entries, message: "Phrase complete!" });
+          dispatch({ type: "correct", entries, message: t("Phrase complete!") });
         } else {
           tick();
           setPhrase(p => ({ ...p, idx: p.idx + 1 }));
@@ -107,7 +107,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       } else {
         chimeWrong();
         setPhrase(p => ({ ...p, misses: { [p.idx]: p.misses[p.idx] ?? midi, ...p.misses } }));
-        dispatch({ type: "wrong", played: midi, message: `You played ${noteName(midi)}` });
+        dispatch({ type: "wrong", played: midi, message: `${t("You played")} ${noteName(midi)}` });
       }
       return;
     }
@@ -118,11 +118,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({
         type: "correct",
         entries: [{ item: exercise.item, hit: state.firstTry, played: state.wrongPlayed }],
-        message: `${exercise.letter} — correct!`,
+        message: `${noteLabel(exercise.letter)} ${t("— correct!")}`,
       });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", played: midi, message: `You played ${noteName(midi)}` });
+      dispatch({ type: "wrong", played: midi, message: `${t("You played")} ${noteName(midi)}` });
     }
   }
 
@@ -134,11 +134,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({
         type: "correct",
         entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
-        message: `Yes — ${exercise.posLabel}.`,
+        message: `${t("Yes —")} ${posLabel(exercise.posLabel)}.`,
       });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", message: "Look again — is the notehead on a line, or between lines?" });
+      dispatch({ type: "wrong", message: t("Look again — is the notehead on a line, or between lines?") });
     }
   }
 
@@ -150,11 +150,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({
         type: "correct",
         entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
-        message: `Yes — a ${exercise.name}.`,
+        message: `${t("Yes —")} ${t(`a ${exercise.name}`)}.`,
       });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", message: "Look at the gap between the noteheads and try again." });
+      dispatch({ type: "wrong", message: t("Look at the gap between the noteheads and try again.") });
     }
   }
 
@@ -166,11 +166,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({
         type: "correct",
         entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
-        message: "Locked in!",
+        message: t("Locked in!"),
       });
     } else {
       chimeWrong();
-      dispatch({ type: "wrong", message: "Not quite — check the timing marks and go again." });
+      dispatch({ type: "wrong", message: t("Not quite — check the timing marks and go again.") });
     }
   }
 
@@ -233,12 +233,12 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     return (
       <main className="screen">
         <section className="card summary">
-          <h2>Session complete</h2>
+          <h2>{t("Session complete")}</h2>
           <p className="big-score">{ok} / {state.exDots.length}</p>
           {reward && (
             <p className="reward">
               +{reward.xpGained} XP
-              {reward.streakDays > 0 && ` · 🔥 ${reward.streakDays}-day streak`}
+              {reward.streakDays > 0 && ` · 🔥 ${reward.streakDays}${t("-day streak")}`}
             </p>
           )}
           <div className="dots" aria-label="Results per exercise">
@@ -248,7 +248,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           </div>
         </section>
         <div className="row">
-          <button className="btn primary" onClick={onHome}>Back to lessons</button>
+          <button className="btn primary" onClick={onHome}>{t("Back to lessons")}</button>
         </div>
       </main>
     );
@@ -260,7 +260,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   return (
     <main className="screen">
       <div className="session-top">
-        <button className="btn quiet" onClick={onHome} aria-label="End session and go home">✕ End</button>
+        <button className="btn quiet" onClick={onHome} aria-label="End session and go home">{t("✕ End")}</button>
         <div className="dots" aria-label={`Exercise ${state.idx + 1} of ${state.exercises.length}`}>
           {state.exercises.map((_, i) => {
             const cls = i < state.exDots.length
@@ -295,16 +295,16 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
 
       <p className="status" role="status">
         {state.message ??
-          {
+          t({
             note: "Play the note you see.",
             phrase: "Play the phrase, left to right.",
             linespace: "Is this note on a line, or in a space?",
             rhythm: "Tap this rhythm with the metronome.",
             interval: "How far apart are these notes?",
-          }[exercise.drill]}
+          }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
-            {mic.hearing ? `Hearing: ${noteName(mic.hearing.midi)}` : "Listening…"}
+            {mic.hearing ? `${t("Hearing:")} ${noteName(mic.hearing.midi)}` : t("Listening…")}
           </span>
         )}
       </p>
@@ -316,7 +316,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
               className={`btn ${mic.status === "listening" ? "listening" : "primary"}`}
               onClick={startMic}
             >
-              {mic.status === "listening" ? "🎤 Listening…" : "🎤 Start microphone"}
+              {mic.status === "listening" ? t("🎤 Listening…") : t("🎤 Start microphone")}
             </button>
             <button
               className="btn"
@@ -324,7 +324,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
                 playMidi(exercise.drill === "phrase" ? exercise.notes[phrase.idx].midi : exercise.midi)
               }
             >
-              🔊 Hear it
+              {t("🔊 Hear it")}
             </button>
           </div>
           <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
@@ -333,8 +333,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
 
       {exercise.drill === "linespace" && (
         <div className="row linespace">
-          <button className="btn answer" onClick={() => answerPos("line")}>── Line ──</button>
-          <button className="btn answer" onClick={() => answerPos("space")}>‿ Space ‿</button>
+          <button className="btn answer" onClick={() => answerPos("line")}>{t("── Line ──")}</button>
+          <button className="btn answer" onClick={() => answerPos("space")}>{t("‿ Space ‿")}</button>
         </div>
       )}
 
@@ -342,7 +342,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         <div className="row">
           {[2, 3, 4, 5].map(size => (
             <button key={size} className="btn answer" onClick={() => answerInterval(size)}>
-              {{ 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" }[size]}
+              {t({ 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" }[size])}
             </button>
           ))}
         </div>
@@ -357,12 +357,12 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       )}
 
       <p className="inputs-status">
-        {mic.status === "error" && `Microphone unavailable: ${mic.error}. `}
+        {mic.status === "error" && `${t("Microphone unavailable:")} ${mic.error}. `}
         {midiDevices === null
-          ? "MIDI not supported in this browser — mic and buttons work."
+          ? t("MIDI not supported in this browser — mic and buttons work.")
           : midiDevices.length
-            ? `MIDI: ${midiDevices.join(", ")}`
-            : "MIDI: plug in a keyboard and it connects automatically."}
+            ? `${t("MIDI:")} ${midiDevices.join(", ")}`
+            : t("MIDI: plug in a keyboard and it connects automatically.")}
       </p>
     </main>
   );

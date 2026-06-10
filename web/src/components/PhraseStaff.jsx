@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Renderer, Stave, StaveNote, Formatter, Annotation, AnnotationVerticalJustify } from "vexflow";
 import { LETTER_COLORS } from "../lib/notes.js";
+import { noteLabel } from "../lib/i18n.js";
 
 const DONE_INK = "#9a9078";   // already played: receded into the paper
 const AHEAD_INK = "#cdc4ab";  // coming up: visible but quiet
@@ -31,8 +32,9 @@ export default function PhraseStaff({ notes, currentIdx, scaffold }) {
           sn.setStyle({ fillStyle: c, strokeStyle: c });
         }
         if (scaffold.letters) {
-          const ann = new Annotation(n.letter)
-            .setFont("Fraunces, Georgia, serif", 13, "bold")
+          const label = noteLabel(n.letter);
+          const ann = new Annotation(label)
+            .setFont("Fraunces, Georgia, serif", label.length > 1 ? 11 : 13, "bold")
             .setVerticalJustification(AnnotationVerticalJustify.BOTTOM);
           sn.addModifier(ann);
         }
