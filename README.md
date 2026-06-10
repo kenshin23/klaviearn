@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/icon.svg" width="128" alt="Klaviearn — three notes on a line, their colors fading as you master them" />
+</p>
+
 # Klaviearn 🎹
 
 **Learn to sight read piano music — designed accessibility-first for low-vision musicians.**
