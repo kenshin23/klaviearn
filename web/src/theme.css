@@ -206,6 +206,7 @@ h2 {
   border: 2px solid #46405c; border-radius: 12px; padding: 12px 14px;
 }
 .form-error { color: var(--bad); font-weight: 700; margin: 0; }
+.form-ok { color: var(--ok-bright); font-weight: 700; margin: 0; }
 
 /* ---------- Stats chips ---------- */
 .chips { display: flex; gap: 10px; justify-content: center; margin: 12px 0 0; }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import SettingsPanel from "../components/SettingsPanel.jsx";
+import PasswordForm from "../components/PasswordForm.jsx";
 import { nodeText, t } from "../lib/i18n.js";
 
 // `nodes` carries optional server stats (accuracy, dueCount, mastery);
@@ -86,6 +87,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
         )}
       </div>
       {showSettings && <SettingsPanel settings={settings} onChange={onSettings} />}
+      {showSettings && onLogout && <PasswordForm />}
     </main>
   );
 }

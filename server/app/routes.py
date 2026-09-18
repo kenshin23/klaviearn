@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -58,6 +59,21 @@ def me(user=Depends(current_user), db=Depends(get_db)):
 @router.put("/me/settings")
 def save_settings(settings: dict, user=Depends(current_user), db=Depends(get_db)):
     user.settings_json = json.dumps({**DEFAULT_SETTINGS, **settings})
+    db.add(user)
+    db.commit()
+    return {"ok": True}
+
+
+class PasswordChange(BaseModel):
+    current: str
+    new: str = Field(min_length=8)
+
+
+@router.put("/me/password")
+def change_password(body: PasswordChange, user=Depends(current_user), db=Depends(get_db)):
+    if not bcrypt.checkpw(body.current.encode(), user.pw_hash.encode()):
+        raise HTTPException(status_code=401, detail="Current password is wrong")
+    user.pw_hash = bcrypt.hashpw(body.new.encode(), bcrypt.gensalt()).decode()
     db.add(user)
     db.commit()
     return {"ok": True}
