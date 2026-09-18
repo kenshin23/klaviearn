@@ -1,0 +1,129 @@
+import { PHRASE_COUNT, PHRASE_NOTES, SESSION_LENGTH, buildSession } from "./session.js";
+import { NOTES, SKILL_NODES, chordKey, nodeItemKeys } from "./notes.js";
+
+const node = id => SKILL_NODES.find(n => n.id === id);
+const NO_STATS = {};
+
+describe("session length", () => {
+  it.each([
+    ["octave", "note", SESSION_LENGTH],
+    ["octave", "linespace", SESSION_LENGTH],
+    ["octave", "phrase", PHRASE_COUNT],
+    ["rhythm-eighths", "rhythm", SESSION_LENGTH],
+    ["intervals", "interval", SESSION_LENGTH],
+    ["grand", "note", SESSION_LENGTH],
+    ["chords", "chord", SESSION_LENGTH],
+  ])("%s / %s builds %i exercises", (id, drill, count) => {
+    expect(buildSession(node(id), drill, NO_STATS)).toHaveLength(count);
+  });
+
+  it("honours an explicit length", () => {
+    expect(buildSession(node("octave"), "note", NO_STATS, 3)).toHaveLength(3);
+  });
+});
+
+describe("exercise shape", () => {
+  it("tags each exercise with its drill and a valid item key", () => {
+    for (const [id, drill] of [["octave", "note"], ["chords", "chord"], ["intervals", "interval"]]) {
+      const valid = new Set(nodeItemKeys(node(id)));
+      for (const ex of buildSession(node(id), drill, NO_STATS)) {
+        expect(ex.drill).toBe(drill);
+        expect(valid.has(ex.item)).toBe(true);
+      }
+    }
+  });
+
+  it("draws chord exercises as playable root-position triads", () => {
+    const valid = new Set(node("chords").triads.map(([r, q]) => chordKey(r, q)));
+    for (const ex of buildSession(node("chords"), "chord", NO_STATS)) {
+      expect(valid.has(ex.item)).toBe(true);
+      expect(ex.midis).toHaveLength(3);
+      expect(ex.notes).toHaveLength(3);
+      expect(ex.midis).toEqual([...ex.midis].sort((a, b) => a - b));
+      expect(ex.quality).toMatch(/^(maj|min)$/);
+      expect(ex.rootName).toBeTruthy();
+    }
+  });
+
+  it("draws phrases of four notes from the node's own pool", () => {
+    for (const ex of buildSession(node("octave"), "phrase", NO_STATS)) {
+      expect(ex.notes).toHaveLength(PHRASE_NOTES);
+      for (const n of ex.notes) expect(NOTES.treble[n.midi]).toBeDefined();
+    }
+  });
+
+  it("spans the named distance in interval exercises", () => {
+    const scale = Object.keys(NOTES.treble).map(Number).sort((a, b) => a - b);
+    for (const ex of buildSession(node("intervals"), "interval", NO_STATS)) {
+      const [low, high] = ex.notes.map(n => n.midi);
+      expect(scale.indexOf(high) - scale.indexOf(low)).toBe(ex.size - 1);
+    }
+  });
+
+  it("gives rhythm exercises a pattern to tap", () => {
+    for (const ex of buildSession(node("rhythm-steady"), "rhythm", NO_STATS)) {
+      expect(ex.durations.length).toBeGreaterThan(0);
+      expect(ex.name).toBeTruthy();
+    }
+  });
+
+  it("marks grand-staff notes so the right staff renders", () => {
+    for (const ex of buildSession(node("grand"), "note", NO_STATS)) {
+      expect(ex.grand).toBe(true);
+      expect(["treble", "bass"]).toContain(ex.clef);
+    }
+  });
+});
+
+describe("item ordering", () => {
+  it("never shows the same item twice in a row", () => {
+    const items = buildSession(node("octave"), "note", NO_STATS, 60).map(e => e.item);
+    for (let i = 1; i < items.length; i++) expect(items[i]).not.toBe(items[i - 1]);
+  });
+
+  it("does not repeat a note back-to-back inside a phrase", () => {
+    for (const ex of buildSession(node("octave"), "phrase", NO_STATS)) {
+      for (let i = 1; i < ex.notes.length; i++) {
+        expect(ex.notes[i].item).not.toBe(ex.notes[i - 1].item);
+      }
+    }
+  });
+
+  it("copes with a single-item pool without looping forever", () => {
+    const solo = { id: "solo", clef: "treble", midis: [60] };
+    const items = buildSession(solo, "note", NO_STATS, 5).map(e => e.item);
+    expect(items).toEqual(Array(5).fill("treble:60"));
+  });
+});
+
+describe("weighting by past performance", () => {
+  it("favours the note you keep missing", () => {
+    const stats = {
+      "treble:60": { seen: 20, correct: 1, streak: 0 },
+      "treble:67": { seen: 20, correct: 20, streak: 5 },
+    };
+    const items = buildSession(node("guide"), "note", stats, 400).map(e => e.item);
+    const missed = items.filter(i => i === "treble:60").length;
+    // Alternation is forced with a two-item pool, so compare against a third
+    // item instead: add one and check the weak note still dominates it.
+    expect(missed).toBeGreaterThan(0);
+
+    const threeWay = buildSession(node("steps"), "note", stats, 600).map(e => e.item);
+    const weak = threeWay.filter(i => i === "treble:60").length;
+    const strong = threeWay.filter(i => i === "treble:67").length;
+    expect(weak).toBeGreaterThan(strong);
+  });
+
+  it("introduces unseen notes eagerly", () => {
+    const stats = { "treble:60": { seen: 50, correct: 50, streak: 5 } };
+    const items = buildSession(node("steps"), "note", stats, 600).map(e => e.item);
+    const seenNote = items.filter(i => i === "treble:60").length;
+    const newNote = items.filter(i => i === "treble:64").length;
+    expect(newNote).toBeGreaterThan(seenNote);
+  });
+
+  it("ignores stats for items outside the node", () => {
+    const stats = { "bass:53": { seen: 10, correct: 0, streak: 0 } };
+    expect(() => buildSession(node("guide"), "note", stats)).not.toThrow();
+  });
+});

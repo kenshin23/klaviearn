@@ -1,0 +1,169 @@
+"""Accounts: registration, login, tokens, rate limiting, password changes."""
+import jwt
+import pytest
+from sqlalchemy import select
+
+from app import auth
+from app.models import User
+
+from .conftest import EMAIL, PASSWORD
+
+REGISTER = "/api/auth/register"
+LOGIN = "/api/auth/login"
+
+
+def register(client, email=EMAIL, password=PASSWORD):
+    return client.post(REGISTER, json={"email": email, "password": password})
+
+
+# --- Registration ------------------------------------------------------------
+
+def test_register_returns_a_token_and_the_normalised_email(client):
+    r = register(client)
+    assert r.status_code == 200
+    assert r.json()["email"] == EMAIL
+    assert r.json()["token"]
+
+
+@pytest.mark.parametrize("raw", ["  PIANIST@Example.COM  ", "Pianist@example.com"])
+def test_register_normalises_case_and_whitespace(client, raw):
+    assert register(client, email=raw).json()["email"] == EMAIL
+
+
+def test_register_rejects_a_duplicate_email(client):
+    register(client)
+    r = register(client, email="PIANIST@example.com")
+    assert r.status_code == 409
+
+
+@pytest.mark.parametrize("password", ["", "short", "1234567"])
+def test_register_rejects_a_short_password(client, password):
+    assert register(client, password=password).status_code == 422
+
+
+@pytest.mark.parametrize("email", ["not-an-email", "a@b", ""])
+def test_register_rejects_a_malformed_email(client, email):
+    assert register(client, email=email).status_code == 422
+
+
+def test_the_password_is_not_stored_in_the_clear(client, db):
+    register(client)
+    user = db.scalar(select(User))
+    assert PASSWORD not in user.pw_hash
+    assert user.pw_hash.startswith("$2b$")
+
+
+# --- Login -------------------------------------------------------------------
+
+def test_login_with_the_right_password(client):
+    register(client)
+    r = client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD})
+    assert r.status_code == 200
+    assert r.json()["token"]
+
+
+def test_login_is_case_insensitive_on_email(client):
+    register(client)
+    r = client.post(LOGIN, json={"email": "PIANIST@EXAMPLE.COM", "password": PASSWORD})
+    assert r.status_code == 200
+
+
+def test_login_rejects_a_wrong_password(client):
+    register(client)
+    r = client.post(LOGIN, json={"email": EMAIL, "password": "not the password"})
+    assert r.status_code == 401
+
+
+def test_login_rejects_an_unknown_account(client):
+    r = client.post(LOGIN, json={"email": "nobody@example.com", "password": PASSWORD})
+    assert r.status_code == 401
+
+
+def test_unknown_account_and_wrong_password_are_indistinguishable(client):
+    """Same status and message either way, so the endpoint can't enumerate emails."""
+    register(client)
+    wrong_pw = client.post(LOGIN, json={"email": EMAIL, "password": "nope-nope-nope"})
+    no_user = client.post(LOGIN, json={"email": "ghost@example.com", "password": "nope-nope-nope"})
+    assert wrong_pw.status_code == no_user.status_code
+    assert wrong_pw.json() == no_user.json()
+
+
+# --- Tokens ------------------------------------------------------------------
+
+def test_a_token_grants_access(auth_client):
+    assert auth_client.get("/api/me").status_code == 200
+
+
+def test_a_request_without_a_token_is_refused(client):
+    assert client.get("/api/me").status_code in (401, 403)
+
+
+@pytest.mark.parametrize("bad", ["garbage", "a.b.c", ""])
+def test_a_bad_token_is_refused(client, bad):
+    r = client.get("/api/me", headers={"Authorization": f"Bearer {bad}"})
+    assert r.status_code in (401, 403)
+
+
+def test_a_token_for_a_deleted_user_is_refused(client, db, token):
+    db.delete(db.scalar(select(User)))
+    db.commit()
+    r = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+def test_a_token_signed_with_another_secret_is_refused(client):
+    forged = jwt.encode({"sub": "1"}, "some-other-secret", algorithm="HS256")
+    r = client.get("/api/me", headers={"Authorization": f"Bearer {forged}"})
+    assert r.status_code == 401
+
+
+# --- Rate limiting -----------------------------------------------------------
+
+def test_auth_endpoints_are_rate_limited(client):
+    for _ in range(auth.RATE_LIMIT):
+        client.post(LOGIN, json={"email": EMAIL, "password": "wrong-password"})
+    r = client.post(LOGIN, json={"email": EMAIL, "password": "wrong-password"})
+    assert r.status_code == 429
+
+
+def test_the_rate_limit_covers_registration_too(client):
+    for i in range(auth.RATE_LIMIT):
+        register(client, email=f"user{i}@example.com")
+    assert register(client, email="one-too-many@example.com").status_code == 429
+
+
+def test_the_rate_limit_window_is_per_ip(client):
+    for _ in range(auth.RATE_LIMIT):
+        client.post(LOGIN, json={"email": EMAIL, "password": "wrong-password"})
+    auth._attempts.clear()  # stand-in for a different client IP
+    assert client.post(LOGIN, json={"email": EMAIL, "password": "wrong"}).status_code == 401
+
+
+# --- Changing a password -----------------------------------------------------
+
+NEW_PASSWORD = "an even better passphrase"
+
+
+def test_change_password_then_log_in_with_the_new_one(auth_client):
+    r = auth_client.put("/api/me/password", json={"current": PASSWORD, "new": NEW_PASSWORD})
+    assert r.status_code == 200
+
+    assert auth_client.post(LOGIN, json={"email": EMAIL, "password": NEW_PASSWORD}).status_code == 200
+    assert auth_client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD}).status_code == 401
+
+
+def test_change_password_requires_the_current_one(auth_client):
+    r = auth_client.put("/api/me/password", json={"current": "wrong", "new": NEW_PASSWORD})
+    assert r.status_code == 401
+    # ...and the old password still works.
+    assert auth_client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD}).status_code == 200
+
+
+def test_change_password_enforces_a_minimum_length(auth_client):
+    r = auth_client.put("/api/me/password", json={"current": PASSWORD, "new": "short"})
+    assert r.status_code == 422
+
+
+def test_change_password_needs_authentication(client):
+    r = client.put("/api/me/password", json={"current": PASSWORD, "new": NEW_PASSWORD})
+    assert r.status_code in (401, 403)

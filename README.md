@@ -58,6 +58,41 @@ npm run dev
 # open http://localhost:5173 in Chrome (Safari has no Web MIDI)
 ```
 
+## Development
+
+`make help` lists everything. The essentials:
+
+```bash
+make install    # dependencies for both halves, dev tools included
+make test       # pytest + vitest
+make lint       # ruff + eslint
+make check      # lint, test, and build — run this before committing
+```
+
+Tests: **pytest** for the API, SRS scheduler, and curriculum data
+([`server/tests/`](server/tests/)); **vitest** with Testing Library for the
+libraries, components, screens, and the exercise state machine
+(`web/src/**/*.test.js`). Every source file has a suite except `main.jsx`,
+which is the ReactDOM mount.
+
+Two of them are worth knowing about:
+
+- [`test_parity.py`](server/tests/test_parity.py) runs the JS curriculum
+  through node and diffs it against the Python one. Guest mode reads
+  `web/src/lib/notes.js` while accounts read `server/app/content.py`, so drift
+  means two people practise different curricula from the same-looking screen.
+- The staff tests render **real VexFlow** into jsdom and read the SVG back —
+  notehead count, scaffold colour per notehead, annotation text, ledger lines,
+  and the accidental itself. A sharp has no class of its own in VexFlow's
+  output, so it is caught by comparing D major against D minor: same three
+  staff positions, one extra glyph. `src/test/staff.js` holds the helpers.
+
+Linting: **ruff** for Python, **ESLint** for JavaScript. Ruff runs as a linter
+only — the curriculum tables in `content.py` are column-aligned deliberately
+and a formatter would reflow them. ESLint treats the React Compiler rules that
+ship with `eslint-plugin-react-hooks` v7 as warnings rather than errors; they
+flag patterns this app uses on purpose (see `eslint.config.js`).
+
 The original **Phase 0** proof-of-concept — a single dependency-free page —
 lives in [`phase0/`](phase0/) and still works offline:
 

@@ -30,7 +30,7 @@ def day_streak(db, user_id: int) -> int:
     if days[0] not in (today, today - timedelta(days=1)):
         return 0  # streak broken
     streak = 1
-    for newer, older in zip(days, days[1:]):
+    for newer, older in zip(days, days[1:], strict=False):  # adjacent pairs
         if (newer - older).days == 1:
             streak += 1
         else:

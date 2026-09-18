@@ -1,3 +1,4 @@
+import contextlib
 import os
 
 from fastapi import FastAPI
@@ -11,11 +12,8 @@ Base.metadata.create_all(engine)
 
 # Lightweight migration for pre-existing dev databases. (A real migration
 # tool like Alembic comes when the schema stops churning.)
-with engine.begin() as conn:
-    try:
-        conn.execute(text("ALTER TABLE attempts ADD COLUMN played INTEGER"))
-    except Exception:
-        pass  # column already exists
+with engine.begin() as conn, contextlib.suppress(Exception):  # already added
+    conn.execute(text("ALTER TABLE attempts ADD COLUMN played INTEGER"))
 
 app = FastAPI(title="Klaviearn API")
 

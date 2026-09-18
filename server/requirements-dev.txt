@@ -1,0 +1,5 @@
+# Dev-only: not installed in the deploy image (see deploy/Dockerfile).
+-r requirements.txt
+pytest>=8.3
+httpx>=0.28          # FastAPI's TestClient transport
+ruff>=0.9

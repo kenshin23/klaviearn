@@ -1,0 +1,36 @@
+[tool.ruff]
+# 110 rather than the usual 88/100: the curriculum tables in content.py are
+# column-aligned on purpose, and reflowing them would cost more readability
+# than the extra width does.
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # import sorting
+    "UP",  # pyupgrade — keep to modern 3.11 idioms
+    "B",   # bugbear
+    "C4",  # comprehensions
+    "SIM", # simplify
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends()/Query()/Body() in argument defaults IS the FastAPI idiom; B008
+# flags it as the mutable-default bug it is not.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "fastapi.Header",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private helpers (srs._weight) and the rate limiter's
+# module-global state on purpose.
+"tests/*" = ["SLF001"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Import app.* without installing the package.
+pythonpath = ["."]
+addopts = "-q --strict-markers"

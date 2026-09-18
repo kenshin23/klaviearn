@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -9,7 +9,7 @@ from .db import Base
 def utcnow() -> datetime:
     # Naive UTC throughout: SQLite round-trips naive datetimes, and mixing
     # aware/naive breaks comparisons.
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class User(Base):
