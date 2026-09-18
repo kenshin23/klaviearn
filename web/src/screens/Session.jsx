@@ -3,11 +3,12 @@ import Staff from "../components/Staff.jsx";
 import GrandStaff from "../components/GrandStaff.jsx";
 import IntervalStaff from "../components/IntervalStaff.jsx";
 import PhraseStaff from "../components/PhraseStaff.jsx";
+import ChordStaff from "../components/ChordStaff.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
 import RhythmPlay from "../components/RhythmPlay.jsx";
 import Keys from "../components/Keys.jsx";
-import { noteLabel, noteName, posLabel, rhythmName, t } from "../lib/i18n.js";
-import { audioContext, chimeCorrect, chimeWrong, tick, playMidi } from "../lib/audio.js";
+import { chordLabel, noteLabel, noteName, posLabel, t } from "../lib/i18n.js";
+import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi } from "../lib/audio.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
 
@@ -63,11 +64,21 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   const [midiDevices, setMidiDevices] = useState([]);
   const [reward, setReward] = useState(null);
   const [phrase, setPhrase] = useState({ idx: 0, misses: {} });
+  // Notes collected so far for the current chord. The ref is the source of
+  // truth — MIDI can deliver several note-ons before React re-renders, and
+  // reading a half-updated set back through live.current would drop notes.
+  // `pcOnly` sticks once a note arrives from an input that can't express an
+  // octave (on-screen keys), so the whole chord compares by pitch class.
+  const [chord, setChord] = useState({ played: [], pcOnly: false });
+  const chordRef = useRef({ played: [], pcOnly: false });
+  const setChordBoth = next => { chordRef.current = next; setChord(next); };
+  const clearChord = () => setChordBoth({ played: [], pcOnly: false });
   const micStopRef = useRef(null);
   const tapRef = useRef(null);
 
   const exercise = state.exercises[state.idx];
   useEffect(() => setPhrase({ idx: 0, misses: {} }), [state.idx]);
+  useEffect(clearChord, [state.idx]);
 
   // Input handlers read live state through this ref, so the mic/MIDI
   // listeners (wired once) never act on a stale exercise.
@@ -80,9 +91,53 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       : midi === target;
   }
 
+  // A chord is answered as a SET, however it arrives: three keys struck
+  // together (one onChord event), rolled one at a time (three events), or
+  // tapped on screen. Notes accumulate until enough distinct pitches are in
+  // hand, then the whole set is graded at once.
+  function answerChord(midis, { pitchClassOnly = false } = {}) {
+    const { state, settings, exercise } = live.current;
+    if (state.phase !== "listen" || exercise.drill !== "chord") return;
+
+    const held = chordRef.current;
+    const played = [...new Set([...held.played, ...midis])];
+    const pcOnly = held.pcOnly || pitchClassOnly || !settings.strictOctave;
+    const fold = m => (pcOnly ? m % 12 : m);
+    const target = new Set(exercise.midis.map(fold));
+    const heard = new Set(played.map(fold));
+
+    if (heard.size < target.size) {
+      tick(); // still building the chord — acknowledge without grading
+      setChordBoth({ played, pcOnly });
+      return;
+    }
+    clearChord();
+    if (heard.size === target.size && [...target].every(pitch => heard.has(pitch))) {
+      chimeCorrect();
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: state.wrongPlayed }],
+        message: `${chordLabel(exercise.rootName, exercise.quality)} ${t("— correct!")}`,
+      });
+    } else {
+      chimeWrong();
+      const stray = played.find(m => !target.has(fold(m)));
+      dispatch({
+        type: "wrong",
+        played: stray ?? null,
+        message: `${t("You played")} ${played.map(noteName).join(" · ")}`,
+      });
+    }
+  }
+
   function answerNote(midi, { pitchClassOnly = false } = {}) {
     const { state, exercise, phrase } = live.current;
     if (state.phase !== "listen") return;
+
+    if (exercise.drill === "chord") {
+      answerChord([midi], { pitchClassOnly });
+      return;
+    }
 
     if (exercise.drill === "rhythm") {
       tapRef.current?.(); // a piano key is a perfectly good drumstick
@@ -189,7 +244,19 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   }, [state.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // MIDI: wired once for the whole session; routes into the active drill.
-  useEffect(() => startMidiListener({ onNote: answerNote, onDevices: setMidiDevices }), []);
+  // onNote fires immediately (no added latency for reading drills) and is
+  // ignored during chord drills, which grade the buffered onChord set instead.
+  useEffect(
+    () =>
+      startMidiListener({
+        onNote: midi => {
+          if (live.current.exercise.drill !== "chord") answerNote(midi);
+        },
+        onChord: midis => answerChord(midis),
+        onDevices: setMidiDevices,
+      }),
+    [],
+  );
 
   // Typing: letters for pitches, L/S for line-or-space, space/enter taps rhythm.
   useEffect(() => {
@@ -279,6 +346,12 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           <RhythmStaff durations={exercise.durations} />
         ) : exercise.drill === "interval" ? (
           <IntervalStaff notes={exercise.notes} />
+        ) : exercise.drill === "chord" ? (
+          <ChordStaff
+            exercise={exercise}
+            showName={scaffold.letters}
+            showColor={scaffold.colors}
+          />
         ) : exercise.grand ? (
           <GrandStaff
             exercise={exercise}
@@ -302,6 +375,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             linespace: "Is this note on a line, or in a space?",
             rhythm: "Tap this rhythm with the metronome.",
             interval: "How far apart are these notes?",
+            chord: "Play all three notes together.",
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -333,6 +407,32 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             </button>
           </div>
           <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
+        </>
+      )}
+
+      {exercise.drill === "chord" && (
+        <>
+          <div className="row">
+            <button className="btn" onClick={() => playChord(exercise.midis)}>
+              {t("🔊 Hear the chord")}
+            </button>
+            {chord.played.length > 0 && (
+              <button className="btn quiet" onClick={clearChord}>
+                {t("Clear")}
+              </button>
+            )}
+          </div>
+          <p className="pending" role="status">
+            {chord.played.length > 0 && (
+              <>
+                {t("Playing:")}{" "}
+                {chord.played.map(m => (
+                  <span key={m} className="pending-note">{noteName(m)}</span>
+                ))}
+              </>
+            )}
+          </p>
+          <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} accidentals />
         </>
       )}
 

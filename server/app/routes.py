@@ -165,6 +165,7 @@ DRILLS_BY_KIND = {
     "rhythm": {"rhythm"},
     "intervals": {"interval"},
     "grand": {"note"},
+    "chords": {"chord"},
 }
 
 

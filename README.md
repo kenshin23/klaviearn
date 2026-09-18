@@ -4,7 +4,7 @@
 
 # Klaviearn 🎹
 
-**Learn to sight read piano music — designed accessibility-first for low-vision musicians.**
+**Learn to play the piano — designed accessibility-first for low-vision musicians.**
 
 *Klavier* (German for piano) + *learn*.
 
@@ -35,14 +35,15 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phases 1–4 built.** A FastAPI backend in [`server/`](server/) with
+**Phases 1–5 built.** A FastAPI backend in [`server/`](server/) with
 accounts, spaced repetition (SM-2 variant), per-note scaffold fading, XP and
 day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
 works logged-in (server is the source of truth) or as an offline guest
-(localStorage). Eleven skill nodes across six drills: note reading (treble,
+(localStorage). Twelve skill nodes across seven drills: note reading (treble,
 bass, and grand staff), line-or-space discrimination, 4-note phrase reading,
-interval recognition, and metronome rhythm tapping. A stats dashboard shows
-your confusion matrix ("seeing C, you played D ×3") and per-note accuracy.
+interval recognition, metronome rhythm tapping, and root-position triads
+played as a chord. A stats dashboard shows your confusion matrix ("seeing C,
+you played D ×3") and per-note accuracy.
 
 ```bash
 # API (Python 3.11 via asdf — see .tool-versions)
@@ -86,6 +87,7 @@ python3 -m http.server 8000 --directory phase0
 3. ~~**Phase 2** — learning engine: accounts, spaced repetition, skill tree, streaks~~ ✅
 4. ~~**Phase 3** — rhythm + metronome, phrase reading, intervals, grand staff, PWA~~ ✅
 5. ~~**Phase 4** — error-pattern stats (confusion matrix), mic input~~ ✅
-6. **Next** — timed phrase reading against the metronome, hands-together grand
-   staff phrases, real-repertoire excerpts, tempo/tolerance settings — all
-   tuned by feedback from real practice.
+6. ~~**Phase 5** — polyphonic input, accidentals, triad drill~~ ✅
+7. **Next** — the ear track (play back what you hear), then technique with a
+   shared timed evaluator, then real repertoire. See
+   [DESIGN.md](DESIGN.md#8-roadmap).

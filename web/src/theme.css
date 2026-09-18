@@ -208,6 +208,26 @@ h2 {
 .form-error { color: var(--bad); font-weight: 700; margin: 0; }
 .form-ok { color: var(--ok-bright); font-weight: 700; margin: 0; }
 
+/* Black keys keep their natural's colour — swapping to dark-on-dark would
+   cost exactly the contrast this palette exists to provide. They are marked
+   by the ♯ and a dark inset ring instead, not by being dimmer. */
+.key.sharp {
+  box-shadow: var(--shadow-press), inset 0 0 0 5px rgba(0, 0, 0, 0.55);
+  min-width: 68px;
+}
+.key.sharp:active { box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), inset 0 0 0 5px rgba(0, 0, 0, 0.55); }
+
+/* ---------- Chord drill: notes collected so far ---------- */
+.pending {
+  min-height: 2.4em; margin: 6px 0 0;
+  display: flex; gap: 10px; justify-content: center; align-items: center;
+  font-size: 22px; font-weight: 700;
+}
+.pending-note {
+  background: var(--ink-2); border: 2px solid var(--ok);
+  border-radius: 999px; padding: 4px 14px; color: var(--ok-bright);
+}
+
 /* ---------- Stats chips ---------- */
 .chips { display: flex; gap: 10px; justify-content: center; margin: 12px 0 0; }
 .chip {

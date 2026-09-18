@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api.js";
 import { NOTES, RHYTHM_PATTERNS } from "../lib/notes.js";
-import { noteLabel, noteName, posLabel, rhythmName, t } from "../lib/i18n.js";
+import { chordLabel, noteLabel, noteName, posLabel, rhythmName, t } from "../lib/i18n.js";
 
 function itemLabel(item) {
   if (item.startsWith("rhythm:")) {
     const name = RHYTHM_PATTERNS[item.slice(7)]?.name;
     return name ? rhythmName(name) : item;
+  }
+  if (item.startsWith("chord:")) {
+    const [, root, quality] = item.split(":");
+    return chordLabel(root, quality);
   }
   if (item.startsWith("int:")) {
     const size = item.slice(4);

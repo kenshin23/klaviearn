@@ -28,6 +28,18 @@ export function noteName(midi) {
   return (solfege ? SOLFEGE[base] + (raw.includes("#") ? "#" : "") : raw) + octave;
 }
 
+// ("D", "maj") → "D major" / "Re mayor"
+const QUALITY = {
+  en: { maj: "major", min: "minor" },
+  es: { maj: "mayor", min: "menor" },
+};
+export function chordLabel(rootName, quality) {
+  const base = rootName.replace("#", "");
+  const sharp = rootName.includes("#") ? "#" : "";
+  const root = (solfege ? SOLFEGE[base] ?? base : base) + sharp;
+  return `${root} ${QUALITY[lang][quality] ?? quality}`;
+}
+
 const STRINGS = {
   // Keys are the English display text, except a few "key#variant" entries
   // that need an explicit English value (e.g. plural forms).
@@ -96,6 +108,11 @@ const STRINGS = {
     "Have an account? Log in": "¿Ya tienes cuenta? Inicia sesión",
     "Practice without an account (progress stays on this device)": "Practica sin cuenta (el progreso se queda en este dispositivo)",
     "Settings": "Ajustes",
+    "▶ Play the chord": "▶ Toca el acorde",
+    "Play all three notes together.": "Toca las tres notas a la vez.",
+    "Playing:": "Tocando:",
+    "Clear": "Borrar",
+    "🔊 Hear the chord": "🔊 Escucha el acorde",
     "Change password": "Cambiar contraseña",
     "Current password": "Contraseña actual",
     "New password (at least 8 characters)": "Nueva contraseña (mínimo 8 caracteres)",
@@ -152,6 +169,7 @@ export const NODE_TEXT_ES = {
   "rhythm-rests": { title: "Silencios", blurb: "Las notas que no tocas también cuentan." },
   intervals: { title: "Intervalos como formas", blurb: "Deja de contar líneas — ve la distancia. Los lectores fluidos leen saltos, no nombres." },
   grand: { title: "El doble pentagrama", blurb: "Ambos pentagramas juntos — el Do central es el puente entre tus manos." },
+  chords: { title: "Tríadas", blurb: "Tres notas, una forma, un solo sonido — toca el acorde entero de golpe." },
 };
 
 export const nodeText = node =>

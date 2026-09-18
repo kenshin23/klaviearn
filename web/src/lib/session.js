@@ -1,7 +1,9 @@
 // Guest-mode session builder. Logged in, the server builds sessions with
 // the real SRS; this is the offline approximation. Both produce the same
 // exercise shapes.
-import { INTERVAL_NAMES, NOTES, itemKey, noteMeta, RHYTHM_PATTERNS } from "./notes.js";
+import {
+  chordKey, chordSpec, INTERVAL_NAMES, NOTES, itemKey, noteMeta, RHYTHM_PATTERNS,
+} from "./notes.js";
 
 export const SESSION_LENGTH = 10;
 export const PHRASE_COUNT = 5;
@@ -14,31 +16,32 @@ function weightFor(stats) {
 }
 
 export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
-  const pool =
-    node.kind === "rhythm"
-      ? node.patterns.map(pid => ({
-          item: `rhythm:${pid}`,
-          meta: { name: RHYTHM_PATTERNS[pid].name, durations: RHYTHM_PATTERNS[pid].durations },
-          weight: weightFor(noteStats[`rhythm:${pid}`]),
-        }))
-      : node.kind === "intervals"
-        ? node.sizes.map(size => ({
-            item: `int:${size}`,
-            meta: { size, name: INTERVAL_NAMES[size] },
-            weight: weightFor(noteStats[`int:${size}`]),
-          }))
-        : node.kind === "grand"
-          ? ["treble", "bass"].flatMap(clef =>
-              Object.keys(NOTES[clef]).map(midi => ({
-                item: `grand:${clef}:${midi}`,
-                meta: { ...noteMeta(clef, midi), grand: true },
-                weight: weightFor(noteStats[`grand:${clef}:${midi}`]),
-              })),
-            )
-          : node.midis.map(midi => {
-              const item = itemKey(node.clef, midi);
-              return { item, meta: noteMeta(node.clef, midi), weight: weightFor(noteStats[item]) };
-            });
+  const entry = (item, meta) => ({ item, meta, weight: weightFor(noteStats[item]) });
+  const pool = (() => {
+    switch (node.kind) {
+      case "rhythm":
+        return node.patterns.map(pid =>
+          entry(`rhythm:${pid}`, {
+            name: RHYTHM_PATTERNS[pid].name,
+            durations: RHYTHM_PATTERNS[pid].durations,
+          }),
+        );
+      case "intervals":
+        return node.sizes.map(size => entry(`int:${size}`, { size, name: INTERVAL_NAMES[size] }));
+      case "chords":
+        return node.triads.map(([root, quality]) =>
+          entry(chordKey(root, quality), chordSpec(root, quality)),
+        );
+      case "grand":
+        return ["treble", "bass"].flatMap(clef =>
+          Object.keys(NOTES[clef]).map(midi =>
+            entry(`grand:${clef}:${midi}`, { ...noteMeta(clef, midi), grand: true }),
+          ),
+        );
+      default:
+        return node.midis.map(midi => entry(itemKey(node.clef, midi), noteMeta(node.clef, midi)));
+    }
+  })();
 
   function pick(prev) {
     const candidates = pool.length > 1 && prev ? pool.filter(c => c.item !== prev) : pool;

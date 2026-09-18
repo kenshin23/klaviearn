@@ -1,6 +1,6 @@
 // Guest-mode persistence: one localStorage key. Logged in, the server owns
 // all of this and these helpers aren't used.
-import { itemKey } from "./notes.js";
+import { itemKey, nodeItemKeys } from "./notes.js";
 import { browserDefaults } from "./i18n.js";
 
 const KEY = "klaviearn.v1";
@@ -62,9 +62,11 @@ export function recordSession(state, { nodeId, drill, ok, total }) {
 }
 
 export function nodeAccuracy(state, node) {
+  // Via nodeItemKeys, not node.midis: rhythm, interval, grand and chord
+  // nodes have no midis list, and iterating it threw.
   let seen = 0, correct = 0;
-  for (const midi of node.midis) {
-    const s = state.noteStats[itemKey(node.clef, midi)];
+  for (const key of nodeItemKeys(node)) {
+    const s = state.noteStats[key];
     if (s) { seen += s.seen; correct += s.correct; }
   }
   return seen === 0 ? null : correct / seen;

@@ -1,7 +1,13 @@
 """The curriculum as data: note metadata, rhythm patterns, and the skill tree.
 
-Items are keyed "clef:midi" for notes (e.g. "treble:67") and "rhythm:<id>"
-for rhythm patterns. Mirrored in web/src/lib/notes.js for guest mode.
+Items are keyed "clef:midi" for notes (e.g. "treble:67"), "rhythm:<id>" for
+rhythm patterns, and "chord:<root>:<quality>" for triads. Mirrored in
+web/src/lib/notes.js for guest mode.
+
+NOTES below is the *reading* curriculum and stays diatonic on purpose — the
+interval drill derives its scale from it, so chromatic entries here would
+silently change what a "3rd" means. Accidentals live in note_spec(), which
+spells any MIDI number for VexFlow and is what the chord track uses.
 """
 
 def _n(key, letter, midi, pos, pos_label):
@@ -45,6 +51,60 @@ RHYTHM_PATTERNS = {
     "r-rest-2":    {"name": "Rest on beat three",            "durations": ["q", "q", "qr", "q"]},
     "r-rest-3":    {"name": "A half, a rest, a quarter",     "durations": ["h", "qr", "q"]},
 }
+
+# --- Accidentals -------------------------------------------------------------
+# Sharp spelling only for now: every chord in the v1 triad pool spells with
+# sharps, and flats would need key context we don't track yet.
+PC_LETTER = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"]
+PC_ACC =    ["",  "#", "",  "#", "",  "",  "#", "",  "#", "",  "#", ""]
+
+
+def note_spec(midi: int, clef: str = "treble") -> dict:
+    """VexFlow spelling for any MIDI note — the accidental-aware counterpart
+    to the hand-written NOTES table above.
+
+    `letter` stays the base letter (F# -> "F") so the color scaffold keeps
+    working: a sharp is the same color family as its natural, which is how
+    Boomwhackers-style palettes handle it too.
+    """
+    pc = midi % 12
+    letter, acc = PC_LETTER[pc], PC_ACC[pc]
+    octave = midi // 12 - 1
+    return {
+        "key": f"{letter.lower()}{acc}/{octave}",
+        "letter": letter,
+        "acc": acc,
+        "midi": midi,
+        "clef": clef,
+    }
+
+
+# --- Chords ------------------------------------------------------------------
+CHORD_QUALITIES = {"maj": (0, 4, 7), "min": (0, 3, 7)}
+QUALITY_NAMES = {"maj": "major", "min": "minor"}
+
+
+def chord_key(root: int, quality: str) -> str:
+    pc = root % 12
+    return f"chord:{PC_LETTER[pc]}{PC_ACC[pc]}:{quality}"
+
+
+def chord_spec(root: int, quality: str) -> dict:
+    """One root-position triad, laid out on the treble staff."""
+    midis = [root + step for step in CHORD_QUALITIES[quality]]
+    pc = root % 12
+    root_name = f"{PC_LETTER[pc]}{PC_ACC[pc]}"
+    return {
+        "name": f"{root_name} {QUALITY_NAMES[quality]}",
+        "root": root,
+        "rootName": root_name,
+        "quality": quality,
+        "midis": midis,
+        "notes": [note_spec(m) for m in midis],
+        "clef": "treble",
+        "chord": True,
+    }
+
 
 SKILL_NODES = [
     {
@@ -129,6 +189,25 @@ SKILL_NODES = [
         "title": "The grand staff",
         "blurb": "Both staves together — middle C is the bridge between your hands.",
     },
+    {
+        "id": "chords",
+        "kind": "chords",
+        "title": "Triads",
+        "blurb": "Three notes, one shape, one sound — play the whole chord at once.",
+        "clef": "treble",
+        # Root position, treble staff. The primary majors first, then the
+        # relative minors, then two that need a black key.
+        "triads": [
+            [60, "maj"],  # C  — C4 E4 G4
+            [65, "maj"],  # F  — F4 A4 C5
+            [67, "maj"],  # G  — G4 B4 D5
+            [69, "min"],  # Am — A4 C5 E5
+            [62, "min"],  # Dm — D4 F4 A4
+            [64, "min"],  # Em — E4 G4 B4
+            [62, "maj"],  # D  — D4 F#4 A4
+            [64, "maj"],  # E  — E4 G#4 B4
+        ],
+    },
 ]
 
 NODE_BY_ID = {n["id"]: n for n in SKILL_NODES}
@@ -156,6 +235,11 @@ def node_items(node):
         return [
             (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
             for size in node["sizes"]
+        ]
+    if kind == "chords":
+        return [
+            (chord_key(root, quality), chord_spec(root, quality))
+            for root, quality in node["triads"]
         ]
     if kind == "grand":
         return [

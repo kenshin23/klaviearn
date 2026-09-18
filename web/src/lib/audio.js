@@ -25,6 +25,9 @@ export const chimeCorrect = () => {
 export const chimeWrong = () => tone(110, 0.3, "square", 0, 0.12);
 export const tick = () => tone(1568, 0.06, "sine", 0, 0.15); // mid-phrase progress
 export const playMidi = m => tone(midiToFreq(m), 0.9, "triangle");
+// Quieter per voice so a triad isn't three times as loud as a single note.
+export const playChord = midis =>
+  midis.forEach(m => tone(midiToFreq(m), 1.1, "triangle", 0, 0.16));
 
 // Metronome click scheduled on the audio clock (precise, unlike setTimeout).
 export function click(when, accent = false) {

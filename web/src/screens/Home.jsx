@@ -14,6 +14,7 @@ const DRILLS = {
   rhythm: [["rhythm", "▶ Tap the rhythm", "primary"]],
   intervals: [["interval", "▶ Name the interval", "primary"]],
   grand: [["note", "▶ Read notes", "primary"]],
+  chords: [["chord", "▶ Play the chord", "primary"]],
 };
 
 export default function Home({ nodes, me, settings, onSettings, onStart, onStats, onLogout, onSignup }) {
@@ -41,6 +42,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
               <h2>
                 {node.kind === "rhythm" ? "𝅘𝅥𝅮 "
                   : node.kind === "intervals" ? "⤢ "
+                  : node.kind === "chords" ? "🎹 "
                   : node.kind === "grand" ? "𝄞𝄢 "
                   : node.clef === "bass" ? "𝄢 " : "𝄞 "}
                 {nodeText(node).title}

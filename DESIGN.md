@@ -1,7 +1,12 @@
 # Klaviearn — Design Document
 
-A Duolingo-style web app for learning to sight read piano music, designed
+A Duolingo-style web app for learning to **play the piano**, designed
 accessibility-first for low-vision users. Desktop and mobile.
+
+Klaviearn started as a sight-reading trainer, and reading is still the spine
+of the curriculum — but reading is the entry point to playing, not the whole
+skill. The app now teaches five tracks: **reading**, **rhythm**,
+**technique**, **ear**, and **repertoire**.
 
 ## 1. The core insight
 
@@ -14,6 +19,14 @@ The app renders notation **huge, high-contrast, and color/letter-scaffolded**,
 then *gradually fades the scaffolds* as your recognition becomes automatic.
 The endpoint is reading conventional notation (still enlarged); the path there
 never requires squinting.
+
+There is a second insight, and it cuts the other way. Notation is the *least*
+accessible channel piano offers — so it should not be the only one. Playing by
+ear, learning a passage from hearing it, feeling a five-finger shape under the
+hand: these are real pianistic skills that happen to require **no visual
+acuity at all**. A conventional method treats them as supplements to reading.
+Here they are first-class tracks, taught in parallel, and a student who is
+having a bad eyes day can still have a good practice day.
 
 ## 2. Design principles
 
@@ -71,14 +84,35 @@ both themes.
 
 ### Exercise types
 
+**Reading and rhythm (built):**
+
 1. **Note flash** — one note appears on the staff; play it. Core drill.
 2. **Line or space?** — binary discrimination drill (two big buttons / keys).
 3. **Audio match** — hear a pitch, find it on the on-screen staff or keyboard.
 4. **Rhythm tap** — notation rhythm shown huge; tap it on any key/spacebar
    against a metronome. (Separate track — rhythm and pitch are taught apart,
    then merged.)
-5. **Micro sight-reading** — 1–2 bars, 3–8 notes, played in time at a slow
-   tempo. The "real thing," introduced once component skills exist.
+5. **Interval naming** — two notes; name the distance. Trains shape-reading
+   over absolute position, which is the expensive judgment for low vision.
+6. **Micro sight-reading** — 1–2 bars, 3–8 notes, read left to right. The
+   "real thing," introduced once component skills exist.
+
+**Playing (the expansion):**
+
+7. **Chord flash** — a triad on the staff; play all of it, together. The first
+   drill that requires *polyphonic* input, and therefore the first that asks
+   the hand to do something a single finger can't.
+8. **Play it back** — the app plays a short phrase or chord; you reproduce it
+   with no notation on screen. Pure ear, zero acuity required.
+9. **Technique patterns** — five-finger positions, scales, arpeggios, played
+   against a metronome with fingering shown on the noteheads. Graded on note
+   order and evenness of timing.
+10. **Passage practice** — a bar or phrase from a real piece, looped, hands
+    separate before hands together, tempo ramping as accuracy holds.
+
+The through-line: drills 1–6 grade *what you recognized*, drills 7–10 grade
+*what you played*. That distinction is what the engine has to grow to support
+(see §7).
 
 ### Feedback
 
@@ -105,17 +139,37 @@ lives — punishment mechanics are wrong for an accessibility-focused app.
 
 ## 5. Curriculum (skill tree)
 
+Five parallel tracks. Each is independently practisable — a session draws
+from whichever is due — and they converge on repertoire.
+
 ```
-Treble: guide notes (C4, G4)          Rhythm: quarter/half/whole
-        → steps around G4                     → eighths, rests
-        → full treble staff                   → dotted rhythms, ties
-        → treble ledger lines
-Bass:   guide notes (C4, F3)
-        → full bass staff → ledger lines
-Merge:  intervals as shapes (2nds/3rds → 4ths/5ths)
-        → micro sight-reading, one hand
-        → grand staff, hands separate → hands together
-Later:  accidentals → key signatures → real excerpts
+READING          RHYTHM            TECHNIQUE        EAR              REPERTOIRE
+guide notes      quarter/half      5-finger pos.    match a pitch
+ (C4, G4)         /whole            (C position)     you hear
+  ↓                ↓                 ↓                ↓
+steps around G4  eighths, rests    finger numbers   intervals
+  ↓                ↓                as a scaffold     by ear
+full treble      dotted, ties       ↓                 ↓
+  ↓                ↓               contrary/         chord quality
+treble ledger    swung, triplets   parallel motion    (maj/min)
+  ↓                                 ↓                 ↓
+bass guide (F3)                    thumb-under      play back a
+  ↓                                  ↓                phrase
+full bass                          scales +           ↓
+  ↓                                arpeggios        play back a
+intervals as shapes                 ↓                chord
+  ↓                                hands together    ↓
+accidentals ────────────────────────┴─────────────────┘
+  ↓                                        ↓
+chords / triads ──────────────────────────►│
+  ↓                                        │
+key signatures                             ▼
+  ↓                                  first pieces
+grand staff  ─────────────────────►  (hands separate)
+                                           ↓
+                                    hands together
+                                           ↓
+                                    real repertoire
 ```
 
 Pedagogical notes:
@@ -124,6 +178,15 @@ Pedagogical notes:
 - **Intervallic reading** ("up a third") is taught explicitly as its own
   skill; it reduces dependence on absolute position judgment, which is
   exactly the hard part for low vision.
+- **Fingering is a scaffold, not decoration.** Finger numbers render on the
+  noteheads at L0–L1 and fade with the colors. The app can't *see* which
+  finger you used — it teaches and prompts, and grades note order and
+  evenness instead. That is exactly what a teacher does between lessons.
+- **Chords before key signatures.** Playing C–E–G as one shape teaches the
+  hand more than naming the key of G does, and it's the first thing that
+  sounds like music rather than like a drill.
+- **Ear runs the whole length of the tree.** It is not a "later" track — it
+  starts on day one, because it's the track that never depends on your eyes.
 
 ## 6. Input methods
 
@@ -131,7 +194,19 @@ Pedagogical notes:
 |--------|------|-------|
 | **Web MIDI** (primary) | Digital piano w/ USB | Perfect accuracy, instant. Chrome/Edge desktop + Chrome Android. **Not available on iOS Safari** — must not be the only path. |
 | **On-screen keyboard** (universal fallback) | Any device, incl. iPhone | Large touch keys, optional letter labels, ~1.5 octaves visible, scrollable. Also keyboard-bindable (ASDF row) on desktop. |
-| **Microphone pitch detection** (later) | Acoustic piano | Single notes only at first (`pitchy` / autocorrelation in a worklet). Chords unreliable — defer. |
+| **Microphone pitch detection** | Acoustic piano | Single notes only (`pitchy` / autocorrelation in a worklet). Chords are unreliable through a mic — the chord and repertoire drills fall back to MIDI or on-screen input. |
+
+### Polyphony
+
+Reading drills need one note at a time; playing drills need *sets*. The input
+layer buffers note-ons in a short window (~60ms) and emits a chord as a single
+event, so a triad arrives as `{60, 64, 67}` rather than three sequential
+answers. Every drill above chord flash depends on this.
+
+On-screen input can't be simultaneous, so taps accumulate into a pending set
+that submits when it reaches the target size. Consequence worth stating: with
+touch input the app grades *which notes*, not *together* — simultaneity is
+only gradable on MIDI, and even there it's recorded before it's scored.
 
 Device detection on first run: "Press a key on your piano…" → auto-selects
 MIDI if a device responds; otherwise on-screen keyboard with a settings
@@ -176,12 +251,50 @@ React (Vite) SPA  ──JSON──▶  FastAPI  ──SQLAlchemy──▶  SQLit
 - SRS state per (user, item): ease/stability, due date, scaffold level,
   confusion-pair counts.
 
+### The three engine changes the playing tracks need
+
+Generated drills got us through reading. Playing needs three things the
+current engine does not have, and everything in §4's second list depends on
+one of them:
+
+1. **Polyphonic input** (see §6). Sets, not notes. Blocks chords, hands
+   together, and every piece.
+2. **A timed evaluator.** Today the only clock lives in the rhythm drill;
+   pitch drills are untimed, which makes them reading tests rather than
+   playing tests. Generalize the rhythm drill's audio-clock scoring into one
+   evaluator that takes (expected events, tempo) and returns per-event
+   verdicts of pitch *and* timing. Chord, technique, and passage drills all
+   score through it.
+3. **Content that isn't generated.** A note range can't express a piece. Add
+   an authored `Piece` — sections, bars, two staves, fingering, tempo — kept
+   as JSON, imported from MusicXML for public-domain repertoire. Generated
+   drills stay generated; pieces sit alongside them.
+
+The SRS generalizes to all of it for free: an item key is already an opaque
+string, so `piece:minuet-in-g:bar:12` schedules exactly like `treble:60`. The
+bar you keep fumbling comes back tomorrow; the one you own comes back in a
+month. That is the whole practice-planning problem, already solved.
+
 ### Data model (core tables)
 
 `users` · `settings` · `skill_nodes` (static/config) · `user_skill`
-(unlocked, mastery ring) · `items` (note×clef, interval, rhythm pattern) ·
-`user_item_srs` · `attempts` (for stats and confusion analysis) ·
-`streaks/xp`
+(unlocked, mastery ring) · `items` (note×clef, interval, rhythm pattern,
+chord, technique pattern, piece passage) · `user_item_srs` · `attempts` (for
+stats and confusion analysis) · `streaks/xp` · `pieces` (authored content) ·
+`user_piece` (section progress, current tempo, hands-separate/together)
+
+Item-key namespaces (all opaque to the SRS, ≤32 chars):
+
+| Prefix | Example | Track |
+|--------|---------|-------|
+| `treble:` / `bass:` | `treble:60` | reading |
+| `grand:` | `grand:bass:53` | reading |
+| `int:` | `int:3` | reading |
+| `rhythm:` | `rhythm:r-8ths-1` | rhythm |
+| `chord:` | `chord:2:min` | reading + technique |
+| `ear:` | `ear:int:5` | ear |
+| `tech:` | `tech:scale:C:rh` | technique |
+| `piece:` | `piece:minuet-g:b12` | repertoire |
 
 ## 8. Roadmap
 
@@ -201,8 +314,34 @@ scaffold fading, skill tree (treble + bass + rhythm track), streaks/XP.
 **Phase 3 — Sight reading proper.** Micro sight-reading exercises with
 metronome, interval skills, grand staff, PWA install + mobile polish.
 
-**Phase 4 — Reach.** Mic input for acoustic pianos, real-repertoire excerpts,
-stats dashboards (confusion matrix of your note errors), maybe sharing.
+**Phase 4 — Reach.** Mic input for acoustic pianos, stats dashboards
+(confusion matrix of your note errors), maybe sharing.
+
+---
+
+Phases 0–4 built a reading trainer. Phases 5–8 turn it into a piano app. Each
+is independently shippable and worth using on its own; do them in order, and
+put each into daily practice before starting the next.
+
+**Phase 5 — Polyphony and chords.** Chord buffering in the input layer,
+accidentals in the note data, and a triad drill (primary chords, then minors,
+then one that needs a black key). The smallest change that unlocks the most:
+nothing in phases 6–8 is possible without it.
+
+**Phase 6 — The ear track.** Play-back drills — hear a pitch, an interval, a
+chord, a four-note phrase; reproduce it with nothing on screen. Cheap to build
+on top of phase 5's chord comparison, and the most accessible thing in the
+app.
+
+**Phase 7 — Technique and the timed evaluator.** Generalize rhythm scoring
+into the shared evaluator. Five-finger positions, fingering as a scaffold
+level, scales and arpeggios with thumb-under, hands separate → together.
+Phrase reading becomes *timed* phrase reading here.
+
+**Phase 8 — Repertoire.** The `Piece` model, MusicXML import, section looping,
+tempo ramp, per-bar SRS. The point the app has been building toward: you
+practise an actual piece of music, and the app knows which bar you keep
+fumbling.
 
 ## 9. Open questions
 
@@ -212,3 +351,16 @@ stats dashboards (confusion matrix of your note errors), maybe sharing.
 - Whether scaffold L3 (standard proportions) is even a goal, or L2 (plain but
   large) is the practical endpoint for reading real (zoomed/printed-large)
   scores. The app should support either as "done."
+- How strictly to grade simultaneity on chords. Too tight and it punishes a
+  hand that is still learning the shape; too loose and "chord" means
+  "arpeggio." Start ungraded, watch real attempts, then decide.
+- Whether inversions are a separate SRS item from the root-position chord, or
+  the same item at a higher scaffold level. (Leaning: same item — it's the
+  same harmony, recognized a harder way, which is exactly what a scaffold
+  level means here.)
+- Fingering can be taught but not verified without a camera. Is prompt-only
+  fingering good enough to build the habit, or does it risk drilling in a bad
+  one? Worth asking a teacher rather than guessing.
+- Where repertoire comes from. MuseScore's public-domain corpus and IMSLP both
+  have MusicXML, but beginner-level arrangements with *fingering* are rarer
+  than they should be.

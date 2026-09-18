@@ -1,5 +1,8 @@
 // Note metadata and the skill tree, mirroring server/app/content.py.
 // (Guest mode needs them locally; logged in, the server's tree wins.)
+//
+// NOTES stays diatonic on purpose — the interval drill derives its scale from
+// it. Accidentals live in noteSpec(), which spells any MIDI number.
 
 export const LETTER_COLORS = {
   // Boomwhackers-style: one color per letter name, tuned for contrast on cream
@@ -46,6 +49,48 @@ export const RHYTHM_PATTERNS = {
   "r-rest-2":    { name: "Rest on beat three",          durations: ["q", "q", "qr", "q"] },
   "r-rest-3":    { name: "A half, a rest, a quarter",   durations: ["h", "qr", "q"] },
 };
+
+// --- Accidentals ------------------------------------------------------------
+// Sharp spelling only: every v1 triad spells with sharps, and flats would
+// need key context we don't track yet.
+const PC_LETTER = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"];
+const PC_ACC = ["", "#", "", "#", "", "", "#", "", "#", "", "#", ""];
+
+// `letter` stays the base letter (F# -> "F") so the color scaffold keeps
+// working: a sharp shares its natural's color.
+export function noteSpec(midi, clef = "treble") {
+  const pc = midi % 12;
+  const letter = PC_LETTER[pc], acc = PC_ACC[pc];
+  return {
+    key: `${letter.toLowerCase()}${acc}/${Math.floor(midi / 12) - 1}`,
+    letter,
+    acc,
+    midi,
+    clef,
+  };
+}
+
+// --- Chords -----------------------------------------------------------------
+export const CHORD_QUALITIES = { maj: [0, 4, 7], min: [0, 3, 7] };
+const QUALITY_NAMES = { maj: "major", min: "minor" };
+
+export const chordKey = (root, quality) =>
+  `chord:${PC_LETTER[root % 12]}${PC_ACC[root % 12]}:${quality}`;
+
+export function chordSpec(root, quality) {
+  const midis = CHORD_QUALITIES[quality].map(step => root + step);
+  const rootName = `${PC_LETTER[root % 12]}${PC_ACC[root % 12]}`;
+  return {
+    name: `${rootName} ${QUALITY_NAMES[quality]}`,
+    root,
+    rootName,
+    quality,
+    midis,
+    notes: midis.map(m => noteSpec(m)),
+    clef: "treble",
+    chord: true,
+  };
+}
 
 export const SKILL_NODES = [
   {
@@ -124,6 +169,19 @@ export const SKILL_NODES = [
     title: "The grand staff",
     blurb: "Both staves together — middle C is the bridge between your hands.",
   },
+  {
+    id: "chords",
+    kind: "chords",
+    title: "Triads",
+    blurb: "Three notes, one shape, one sound — play the whole chord at once.",
+    clef: "treble",
+    // Root position, treble staff. Primary majors, then relative minors,
+    // then two that need a black key.
+    triads: [
+      [60, "maj"], [65, "maj"], [67, "maj"], [69, "min"],
+      [62, "min"], [64, "min"], [62, "maj"], [64, "maj"],
+    ],
+  },
 ];
 
 export const INTERVAL_NAMES = { 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
@@ -140,12 +198,16 @@ export const nodeItemKeys = node => {
       return ["treble", "bass"].flatMap(clef =>
         Object.keys(NOTES[clef]).map(m => `grand:${clef}:${m}`),
       );
+    case "chords":
+      return node.triads.map(([root, quality]) => chordKey(root, quality));
     default:
       return node.midis.map(m => itemKey(node.clef, m));
   }
 };
 
 export const LETTER_TO_MIDI = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 };
+// The five black keys, shown only where a drill can ask for them (chords).
+export const SHARP_TO_MIDI = { C: 61, D: 63, F: 66, G: 68, A: 70 };
 
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 export const noteName = m => NAMES[m % 12] + (Math.floor(m / 12) - 1);
