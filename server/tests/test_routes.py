@@ -100,6 +100,7 @@ def test_tree_requires_authentication(client):
         ("guide", "note"),
         ("octave", "linespace"),
         ("octave", "phrase"),
+        ("octave", "phrase-timed"),
         ("bass-octave", "note"),
         ("rhythm-steady", "rhythm"),
         ("intervals", "interval"),
@@ -115,7 +116,8 @@ def test_every_node_and_drill_pairing_builds_a_session(auth_client, node_id, dri
     valid = set(items_of(node_id))
     for ex in exercises:
         assert ex["drill"] == drill
-        if drill == "phrase":
+        if drill in ("phrase", "phrase-timed"):
+            # A phrase has no item of its own; each note carries one.
             assert all(n["item"] in valid for n in ex["notes"])
         else:
             assert ex["item"] in valid
@@ -395,3 +397,65 @@ def test_the_tree_shows_the_ear_nodes(auth_client):
     for node_id, _ in EAR_PAIRS:
         assert node_id in nodes
         assert nodes[node_id]["title"] and nodes[node_id]["blurb"]
+
+
+# --- The technique track -----------------------------------------------------
+
+TECHNIQUE_NODES = ["technique-5finger", "technique-scales", "technique-arpeggios"]
+
+
+@pytest.mark.parametrize("node_id", TECHNIQUE_NODES)
+def test_every_technique_node_builds_a_session(auth_client, node_id):
+    r = start(auth_client, node_id, "technique")
+    assert r.status_code == 200
+    valid = set(items_of(node_id))
+    exercises = r.json()["exercises"]
+    assert exercises
+    for ex in exercises:
+        assert ex["item"] in valid
+        assert ex["drill"] == "technique"
+        assert len(ex["midis"]) == len(ex["fingers"])
+
+
+@pytest.mark.parametrize(
+    ("node_id", "drill"),
+    [("technique-scales", "note"), ("octave", "technique"), ("rhythm-steady", "technique")],
+)
+def test_technique_drills_and_nodes_do_not_cross_wires(auth_client, node_id, drill):
+    assert start(auth_client, node_id, drill).status_code == 422
+
+
+def test_a_technique_session_records_progress(auth_client, db):
+    exercises = start(auth_client, "technique-scales", "technique").json()["exercises"]
+    results = [{"item": ex["item"], "hit": True} for ex in exercises]
+    assert complete(auth_client, "technique-scales", "technique", results).json()["xpGained"] > 0
+
+    rows = db.scalars(select(ItemSRS)).all()
+    assert rows and all(r.item_key.startswith("tech:") for r in rows)
+
+
+def test_the_tree_shows_the_technique_nodes(auth_client):
+    nodes = {n["id"]: n for n in auth_client.get("/api/tree").json()["nodes"]}
+    for node_id in TECHNIQUE_NODES:
+        assert node_id in nodes and nodes[node_id]["title"]
+
+
+def test_timed_phrase_reading_runs_on_the_reading_nodes(auth_client):
+    """The same phrases, played against the metronome — the untimed drill
+    stays as the on-ramp, so both must be accepted on a notes node."""
+    for drill in ("phrase", "phrase-timed"):
+        r = start(auth_client, "octave", drill)
+        assert r.status_code == 200, drill
+        exercises = r.json()["exercises"]
+        assert exercises
+        for ex in exercises:
+            assert ex["drill"] == drill
+            assert ex["midis"] == [n["midi"] for n in ex["notes"]]
+
+
+def test_a_timed_phrase_session_credits_the_notes_it_names(auth_client, db):
+    exercises = start(auth_client, "octave", "phrase-timed").json()["exercises"]
+    results = [{"item": n["item"], "hit": True} for n in exercises[0]["notes"]]
+    assert complete(auth_client, "octave", "phrase-timed", results).json()["xpGained"] > 0
+    rows = db.scalars(select(ItemSRS)).all()
+    assert rows and all(r.item_key.startswith("treble:") for r in rows)

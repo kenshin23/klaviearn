@@ -16,6 +16,7 @@ from .models import ItemSRS, utcnow
 SESSION_LENGTH = 10
 PHRASE_COUNT = 5
 PHRASE_NOTES = 4
+TECHNIQUE_LENGTH = 4  # a scale is 15 notes; ten takes of one would be a chore
 HITS_PER_LEVEL = 4
 MAX_LEVEL = 2  # 0 letters+colors, 1 colors only, 2 plain notation
 
@@ -134,6 +135,16 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
             )
         return exercises
 
+    if drill == "technique":
+        exercises, prev = [], None
+        for _ in range(TECHNIQUE_LENGTH):
+            p = pick(prev)
+            prev = p["item"]
+            exercises.append(
+                {"item": p["item"], "drill": drill, "level": p["level"], **p["meta"]}
+            )
+        return exercises
+
     if drill == "ear-chord":
         # A fresh root each time: the answer has to be the quality you hear,
         # not a chord you have memorised the pitch of.
@@ -148,7 +159,7 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
             )
         return exercises
 
-    if drill in ("phrase", "ear-phrase"):
+    if drill in ("phrase", "ear-phrase", "phrase-timed"):
         # Micro sight-reading: 5 phrases of 4 notes, read left to right.
         exercises = []
         for _ in range(PHRASE_COUNT):

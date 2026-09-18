@@ -109,6 +109,7 @@ def test_the_pedagogical_constants_are_what_the_curriculum_assumes():
     assert srs.SESSION_LENGTH == 10
     assert srs.PHRASE_COUNT == 5
     assert srs.PHRASE_NOTES == 4
+    assert srs.TECHNIQUE_LENGTH == 4, "a scale is 15 notes; ten takes would be a chore"
 
 
 def test_scaffolds_fade_after_four_consecutive_hits():
@@ -340,3 +341,48 @@ def test_ear_exercises_report_their_scaffold_level(db, user_id):
     exercises = srs.build_session(db, user_id, node, "ear-pitch", length=20)
     assert exercises
     assert all(ex["level"] == 1 for ex in exercises)
+
+
+# --- The technique track -----------------------------------------------------
+
+@pytest.mark.parametrize(
+    "node_id", ["technique-5finger", "technique-scales", "technique-arpeggios"],
+)
+def test_a_technique_session_is_a_handful_of_takes(db, user_id, node_id):
+    """Ten runs of a fifteen-note scale would be a chore, not practice.
+
+    The literal is deliberate: deriving it from TECHNIQUE_LENGTH would make
+    this test unable to notice TECHNIQUE_LENGTH changing.
+    """
+    exercises = srs.build_session(db, user_id, NODE_BY_ID[node_id], "technique")
+    assert len(exercises) == 4
+    assert len(exercises) < srs.SESSION_LENGTH, "shorter than a reading session"
+
+
+def test_technique_exercises_carry_the_pattern_and_its_fingering(db, user_id):
+    for ex in srs.build_session(db, user_id, NODE_BY_ID["technique-scales"], "technique"):
+        assert ex["drill"] == "technique"
+        assert ex["item"].startswith("tech:")
+        assert len(ex["midis"]) == len(ex["fingers"]) == len(ex["notes"])
+        assert ex["hand"] in ("rh", "lh")
+
+
+def test_technique_alternates_hands_rather_than_drilling_one(db, user_id):
+    hands = {
+        ex["hand"]
+        for ex in srs.build_session(db, user_id, NODE_BY_ID["technique-scales"], "technique", length=40)
+    }
+    assert hands == {"rh", "lh"}
+
+
+def test_technique_reports_its_scaffold_level(db, user_id):
+    """Level decides whether the fingering is printed above the notes."""
+    node = NODE_BY_ID["technique-arpeggios"]
+    assert all(ex["level"] == 0 for ex in srs.build_session(db, user_id, node, "technique"))
+
+    for pattern in node["patterns"]:
+        item = srs.get_or_create(db, user_id, f"tech:{pattern}")
+        for _ in range(srs.HITS_PER_LEVEL * 2):
+            srs.record_review(item, [True])
+    db.commit()
+    assert all(ex["level"] == 2 for ex in srs.build_session(db, user_id, node, "technique"))

@@ -166,7 +166,7 @@ class SessionComplete(BaseModel):
 
 
 DRILLS_BY_KIND = {
-    "notes": {"note", "linespace", "phrase"},
+    "notes": {"note", "linespace", "phrase", "phrase-timed"},
     "rhythm": {"rhythm"},
     "intervals": {"interval"},
     "grand": {"note"},
@@ -175,6 +175,7 @@ DRILLS_BY_KIND = {
     "ear-intervals": {"ear-interval"},
     "ear-chords": {"ear-chord"},
     "ear-phrases": {"ear-phrase"},
+    "technique": {"technique"},
 }
 
 

@@ -119,6 +119,57 @@ def ear_key(midi: int) -> str:
     return f"ear:{midi}"
 
 
+# --- Technique ---------------------------------------------------------------
+# One beat per note at a slow tempo: these drills are about evenness and the
+# fingering, not speed. The fingering is the standard one — thumb-under after
+# E ascending in the right hand, third finger crossing over in the left — and
+# it is what the scaffold shows and then withdraws.
+#
+# The app cannot SEE which finger you used. It teaches and prompts, and grades
+# note order and evenness, which is what a teacher does between lessons.
+TECHNIQUE_PATTERNS = {
+    "5finger:rh": {
+        "name": "C position, right hand", "hand": "rh", "clef": "treble",
+        "midis":   [60, 62, 64, 65, 67, 65, 64, 62, 60],
+        "fingers": [1,  2,  3,  4,  5,  4,  3,  2,  1],
+    },
+    "5finger:lh": {
+        "name": "C position, left hand", "hand": "lh", "clef": "bass",
+        "midis":   [48, 50, 52, 53, 55, 53, 52, 50, 48],
+        "fingers": [5,  4,  3,  2,  1,  2,  3,  4,  5],
+    },
+    "scale:C:rh": {
+        "name": "C major scale, right hand", "hand": "rh", "clef": "treble",
+        "midis":   [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60],
+        "fingers": [1,  2,  3,  1,  2,  3,  4,  5,  4,  3,  2,  1,  3,  2,  1],
+    },
+    "scale:C:lh": {
+        "name": "C major scale, left hand", "hand": "lh", "clef": "bass",
+        "midis":   [48, 50, 52, 53, 55, 57, 59, 60, 59, 57, 55, 53, 52, 50, 48],
+        "fingers": [5,  4,  3,  2,  1,  3,  2,  1,  2,  3,  1,  2,  3,  4,  5],
+    },
+    "arp:C:rh": {
+        "name": "C major arpeggio, right hand", "hand": "rh", "clef": "treble",
+        "midis":   [60, 64, 67, 72, 67, 64, 60],
+        "fingers": [1,  2,  3,  5,  3,  2,  1],
+    },
+    "arp:C:lh": {
+        "name": "C major arpeggio, left hand", "hand": "lh", "clef": "bass",
+        "midis":   [48, 52, 55, 60, 55, 52, 48],
+        "fingers": [5,  3,  2,  1,  2,  3,  5],
+    },
+}
+
+
+def technique_spec(pattern_id: str) -> dict:
+    pattern = TECHNIQUE_PATTERNS[pattern_id]
+    return {
+        **pattern,
+        "pattern": pattern_id,
+        "notes": [note_spec(m, pattern["clef"]) for m in pattern["midis"]],
+    }
+
+
 SKILL_NODES = [
     {
         "id": "guide",
@@ -203,6 +254,27 @@ SKILL_NODES = [
         "blurb": "Both staves together — middle C is the bridge between your hands.",
     },
     {
+        "id": "technique-5finger",
+        "kind": "technique",
+        "title": "Five-finger positions",
+        "blurb": "Five notes under five fingers, up and down, even. Where every hand starts.",
+        "patterns": ["5finger:rh", "5finger:lh"],
+    },
+    {
+        "id": "technique-scales",
+        "kind": "technique",
+        "title": "Scales, thumb under",
+        "blurb": "C major, one octave. The thumb tucking under is the whole trick.",
+        "patterns": ["scale:C:rh", "scale:C:lh"],
+    },
+    {
+        "id": "technique-arpeggios",
+        "kind": "technique",
+        "title": "Arpeggios",
+        "blurb": "The triad spread out under the hand — a chord you play one note at a time.",
+        "patterns": ["arp:C:rh", "arp:C:lh"],
+    },
+    {
         "id": "ear-pitch",
         "kind": "ear-pitch",
         "title": "Match the pitch",
@@ -278,6 +350,8 @@ def node_items(node):
             (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
             for size in node["sizes"]
         ]
+    if kind == "technique":
+        return [(f"tech:{pid}", technique_spec(pid)) for pid in node["patterns"]]
     if kind in ("ear-pitch", "ear-phrases"):
         # Shared keys: the pitch drill and the phrase drill train the same
         # "which note is that?" recall, so they feed one SRS item per note.

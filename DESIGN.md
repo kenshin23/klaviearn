@@ -349,10 +349,31 @@ Same ladder shape as the visual scaffolds — full support that withdraws as
 the item is mastered — spent on a channel that has nothing to do with
 eyesight.
 
-**Phase 7 — Technique and the timed evaluator.** Generalize rhythm scoring
-into the shared evaluator. Five-finger positions, fingering as a scaffold
-level, scales and arpeggios with thumb-under, hands separate → together.
-Phrase reading becomes *timed* phrase reading here.
+**Phase 7 — Technique and the timed evaluator.** *Built, except hands
+together.* The rhythm drill's scoring is now `web/src/lib/evaluator.js`: a
+pure function that takes what was expected and what was played, both in
+beats, and returns a per-event verdict of pitch *and* timing — ok, early,
+late, wrong note, or missed — plus anything played that nobody asked for.
+`components/TimedPlay.jsx` is the app's only clock: it counts in, runs the
+metronome, collects what was played, and scores through that evaluator. The
+rhythm drill moved onto it and `RhythmPlay` is gone, because two components
+with two clocks was the duplication this phase existed to remove.
+
+On top of it: five-finger positions, C major scales with the thumb tucking
+under, and arpeggios — each hand separately, one beat per note at 80bpm,
+because these drills are about evenness and fingering rather than speed.
+Fingering prints above the notes and withdraws with the colours, exactly as
+§5 describes. Phrase reading gained a timed variant that credits each note
+separately from the take's verdicts.
+
+**Not built: hands together, and contrary motion.** Both need simultaneous
+two-staff expectations and notation, which sits closer to phase 8's passage
+work than to anything else here. Hands *separate* ships.
+
+The untimed phrase drill stayed rather than being replaced. Reading a phrase
+at your own pace is the on-ramp to reading it in time, and taking the ramp
+away to add the destination would have been a worse trade than offering
+both.
 
 **Phase 8 — Repertoire.** The `Piece` model, MusicXML import, section looping,
 tempo ramp, per-bar SRS. The point the app has been building toward: you

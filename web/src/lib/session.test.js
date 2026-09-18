@@ -1,4 +1,6 @@
-import { PHRASE_COUNT, PHRASE_NOTES, SESSION_LENGTH, buildSession } from "./session.js";
+import {
+  PHRASE_COUNT, PHRASE_NOTES, SESSION_LENGTH, TECHNIQUE_LENGTH, buildSession,
+} from "./session.js";
 import { NOTES, SKILL_NODES, chordKey, nodeItemKeys } from "./notes.js";
 
 const node = id => SKILL_NODES.find(n => n.id === id);
@@ -194,6 +196,49 @@ describe("the ear track", () => {
 
   it("gives ear phrases four notes and their midis", () => {
     for (const ex of buildSession(node("ear-phrases"), "ear-phrase", NO_STATS)) {
+      expect(ex.notes).toHaveLength(PHRASE_NOTES);
+      expect(ex.midis).toEqual(ex.notes.map(n => n.midi));
+    }
+  });
+});
+
+describe("the technique track", () => {
+  it.each(["technique-5finger", "technique-scales", "technique-arpeggios"])(
+    "%s builds a handful of takes offline too", id => {
+      expect(buildSession(node(id), "technique", NO_STATS)).toHaveLength(TECHNIQUE_LENGTH);
+    });
+
+  it("carries the pattern, its fingering and its notes", () => {
+    for (const ex of buildSession(node("technique-scales"), "technique", NO_STATS)) {
+      expect(ex.drill).toBe("technique");
+      expect(ex.item.startsWith("tech:")).toBe(true);
+      expect(ex.midis).toHaveLength(ex.fingers.length);
+      expect(ex.notes).toHaveLength(ex.midis.length);
+      expect(["rh", "lh"]).toContain(ex.hand);
+    }
+  });
+
+  it("alternates hands rather than drilling one", () => {
+    const hands = new Set(
+      buildSession(node("technique-scales"), "technique", NO_STATS, 40).map(e => e.hand),
+    );
+    expect(hands).toEqual(new Set(["rh", "lh"]));
+  });
+
+  it("draws technique items from its own namespace", () => {
+    const valid = new Set(nodeItemKeys(node("technique-arpeggios")));
+    for (const ex of buildSession(node("technique-arpeggios"), "technique", NO_STATS)) {
+      expect(valid.has(ex.item)).toBe(true);
+    }
+  });
+});
+
+describe("timed phrase reading", () => {
+  it("builds the same phrases as the untimed drill", () => {
+    const timed = buildSession(node("octave"), "phrase-timed", NO_STATS);
+    expect(timed).toHaveLength(PHRASE_COUNT);
+    for (const ex of timed) {
+      expect(ex.drill).toBe("phrase-timed");
       expect(ex.notes).toHaveLength(PHRASE_NOTES);
       expect(ex.midis).toEqual(ex.notes.map(n => n.midi));
     }

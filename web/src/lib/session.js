@@ -3,12 +3,13 @@
 // exercise shapes.
 import {
   chordKey, chordSpec, EAR_CHORD_ROOTS, earKey, INTERVAL_NAMES, NOTES, itemKey, noteMeta, noteSpec,
-  QUALITY_NAMES, RHYTHM_PATTERNS,
+  QUALITY_NAMES, RHYTHM_PATTERNS, techniqueSpec,
 } from "./notes.js";
 
 export const SESSION_LENGTH = 10;
 export const PHRASE_COUNT = 5;
 export const PHRASE_NOTES = 4;
+export const TECHNIQUE_LENGTH = 4; // a scale is 15 notes; ten takes would be a chore
 
 function weightFor(stats) {
   if (!stats || stats.seen === 0) return 2.5;
@@ -33,6 +34,8 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
         return node.triads.map(([root, quality]) =>
           entry(chordKey(root, quality), chordSpec(root, quality)),
         );
+      case "technique":
+        return node.patterns.map(p => entry(`tech:${p}`, techniqueSpec(p)));
       case "ear-pitch":
       case "ear-phrases":
         return node.midis.map(midi => entry(earKey(midi), noteSpec(midi)));
@@ -89,6 +92,17 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
     return exercises;
   }
 
+  if (drill === "technique") {
+    const exercises = [];
+    let prev = null;
+    for (let i = 0; i < TECHNIQUE_LENGTH; i++) {
+      const p = pick(prev);
+      prev = p.item;
+      exercises.push({ item: p.item, drill, level: 0, ...p.meta });
+    }
+    return exercises;
+  }
+
   if (drill === "ear-chord") {
     // A fresh root each time: the answer has to be the quality you hear, not
     // a chord you have memorised the pitch of.
@@ -103,7 +117,7 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
     return exercises;
   }
 
-  if (drill === "phrase" || drill === "ear-phrase") {
+  if (drill === "phrase" || drill === "ear-phrase" || drill === "phrase-timed") {
     const exercises = [];
     for (let i = 0; i < PHRASE_COUNT; i++) {
       const notes = [];

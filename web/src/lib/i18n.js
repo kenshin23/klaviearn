@@ -110,6 +110,12 @@ const STRINGS = {
     "Settings": "Ajustes",
     "▶ Play the chord": "▶ Toca el acorde",
     "▶ Match the pitch": "▶ Encuentra la nota",
+    "▶ Play the pattern": "▶ Toca el patrón",
+    "In time": "A tiempo",
+    "In time!": "¡A tiempo!",
+    "Play the phrase in time with the metronome.": "Toca la frase a tiempo con el metrónomo.",
+    "Play it evenly, with the fingering shown.": "Tócalo parejo, con la digitación indicada.",
+    "▶ Count-in & play": "▶ Cuenta y toca",
     "▶ Name what you hear": "▶ Nombra lo que oyes",
     "▶ Major or minor?": "▶ ¿Mayor o menor?",
     "▶ Play it back": "▶ Tócala de vuelta",
@@ -181,6 +187,9 @@ export const NODE_TEXT_ES = {
   "rhythm-rests": { title: "Silencios", blurb: "Las notas que no tocas también cuentan." },
   intervals: { title: "Intervalos como formas", blurb: "Deja de contar líneas — ve la distancia. Los lectores fluidos leen saltos, no nombres." },
   grand: { title: "El doble pentagrama", blurb: "Ambos pentagramas juntos — el Do central es el puente entre tus manos." },
+  "technique-5finger": { title: "Posiciones de cinco dedos", blurb: "Cinco notas bajo cinco dedos, arriba y abajo, parejo. Donde empieza toda mano." },
+  "technique-scales": { title: "Escalas, pulgar por debajo", blurb: "Do mayor, una octava. El pulgar que se mete por debajo es todo el truco." },
+  "technique-arpeggios": { title: "Arpegios", blurb: "La tríada extendida bajo la mano — un acorde que tocas nota a nota." },
   chords: { title: "Tríadas", blurb: "Tres notas, una forma, un solo sonido — toca el acorde entero de golpe." },
   "ear-pitch": { title: "Encuentra la nota", blurb: "Oye una nota y búscala en tu piano. Nada en pantalla — esto es puro oído." },
   "ear-intervals": { title: "Intervalos de oído", blurb: "Dos notas, sin partitura. Nombra la distancia solo por el sonido." },
@@ -222,3 +231,13 @@ const RHYTHM_ES = {
   "A half, a rest, a quarter": "Blanca, silencio, negra",
 };
 export const rhythmName = en => (lang === "es" ? RHYTHM_ES[en] ?? en : en);
+
+const TECHNIQUE_ES = {
+  "C position, right hand": "Posición de Do, mano derecha",
+  "C position, left hand": "Posición de Do, mano izquierda",
+  "C major scale, right hand": "Escala de Do mayor, mano derecha",
+  "C major scale, left hand": "Escala de Do mayor, mano izquierda",
+  "C major arpeggio, right hand": "Arpegio de Do mayor, mano derecha",
+  "C major arpeggio, left hand": "Arpegio de Do mayor, mano izquierda",
+};
+export const techniqueName = en => (lang === "es" ? TECHNIQUE_ES[en] ?? en : en);

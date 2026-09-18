@@ -7,6 +7,7 @@ from app.content import (
     NOTES,
     RHYTHM_PATTERNS,
     SKILL_NODES,
+    TECHNIQUE_PATTERNS,
     chord_key,
     chord_spec,
     ear_key,
@@ -191,6 +192,9 @@ def test_item_metadata_carries_what_each_drill_renders():
                 assert len(meta["midis"]) == 3
                 assert len(meta["notes"]) == 3
                 assert meta["clef"] == "treble"
+            elif kind == "technique":
+                assert len(meta["midis"]) == len(meta["fingers"])
+                assert meta["name"] and meta["hand"] in ("rh", "lh")
             elif kind in ("ear-pitch", "ear-phrases"):
                 assert meta["midi"] and meta["letter"]
             elif kind == "ear-intervals":
@@ -252,3 +256,95 @@ def test_ear_nodes_carry_no_notation_requirement():
     for node_id in ("ear-intervals", "ear-chords"):
         for _key, meta in node_items(NODE_BY_ID[node_id]):
             assert "pos" not in meta
+
+
+# --- The technique track -----------------------------------------------------
+
+TECHNIQUE_NODES = ["technique-5finger", "technique-scales", "technique-arpeggios"]
+
+
+def test_technique_items_are_namespaced_and_fit_the_schema():
+    for node_id in TECHNIQUE_NODES:
+        for key, _ in node_items(NODE_BY_ID[node_id]):
+            assert key.startswith("tech:"), key
+            assert len(key) <= MAX_ITEM_KEY
+
+
+def test_every_pattern_has_one_finger_per_note():
+    for pid, pattern in TECHNIQUE_PATTERNS.items():
+        assert len(pattern["fingers"]) == len(pattern["midis"]), pid
+
+
+def test_fingers_are_fingers():
+    for pid, pattern in TECHNIQUE_PATTERNS.items():
+        assert all(1 <= f <= 5 for f in pattern["fingers"]), pid
+
+
+def test_each_hand_reads_from_its_own_clef():
+    for pid, pattern in TECHNIQUE_PATTERNS.items():
+        assert pattern["clef"] == ("treble" if pattern["hand"] == "rh" else "bass"), pid
+
+
+def test_left_hand_patterns_sit_below_the_right_hand_ones():
+    rh = [p for p in TECHNIQUE_PATTERNS.values() if p["hand"] == "rh"]
+    lh = [p for p in TECHNIQUE_PATTERNS.values() if p["hand"] == "lh"]
+    assert max(max(p["midis"]) for p in lh) <= max(max(p["midis"]) for p in rh)
+    assert min(min(p["midis"]) for p in lh) < min(min(p["midis"]) for p in rh)
+
+
+def test_five_finger_positions_use_each_finger_once_per_direction():
+    """Five notes under five fingers is the whole idea — no thumb-under here."""
+    for pid in ("5finger:rh", "5finger:lh"):
+        pattern = TECHNIQUE_PATTERNS[pid]
+        assert sorted(set(pattern["fingers"])) == [1, 2, 3, 4, 5], pid
+        assert len(set(pattern["midis"])) == 5, pid
+
+
+def test_the_scales_actually_tuck_the_thumb_under():
+    """A one-octave scale cannot be played without the thumb crossing, and a
+    fingering that never returns to 1 mid-scale would be teaching it wrong."""
+    for pid in ("scale:C:rh", "scale:C:lh"):
+        fingers = TECHNIQUE_PATTERNS[pid]["fingers"]
+        interior = fingers[1:-1]
+        assert 1 in interior, f"{pid} never crosses the thumb"
+
+
+def test_the_right_hand_scale_is_the_standard_fingering():
+    pattern = TECHNIQUE_PATTERNS["scale:C:rh"]
+    assert pattern["fingers"][:8] == [1, 2, 3, 1, 2, 3, 4, 5], "ascending"
+    assert pattern["fingers"][7:] == [5, 4, 3, 2, 1, 3, 2, 1], "descending"
+
+
+def test_the_left_hand_scale_is_the_standard_fingering():
+    pattern = TECHNIQUE_PATTERNS["scale:C:lh"]
+    assert pattern["fingers"][:8] == [5, 4, 3, 2, 1, 3, 2, 1], "ascending"
+    assert pattern["fingers"][7:] == [1, 2, 3, 1, 2, 3, 4, 5], "descending"
+
+
+def test_patterns_go_up_and_come_back_to_where_they_started():
+    for pid, pattern in TECHNIQUE_PATTERNS.items():
+        midis = pattern["midis"]
+        assert midis[0] == midis[-1], f"{pid} does not return home"
+        assert midis[len(midis) // 2] == max(midis), f"{pid} does not turn at the top"
+
+
+def test_arpeggios_are_built_from_a_triad():
+    for pid in ("arp:C:rh", "arp:C:lh"):
+        pitch_classes = {m % 12 for m in TECHNIQUE_PATTERNS[pid]["midis"]}
+        assert pitch_classes == {0, 4, 7}, f"{pid} is not a C major triad"
+
+
+def test_scales_are_stepwise_and_arpeggios_are_not():
+    def steps(midis):
+        return [abs(b - a) for a, b in zip(midis, midis[1:], strict=False)]
+
+    assert all(s <= 2 for s in steps(TECHNIQUE_PATTERNS["scale:C:rh"]["midis"]))
+    assert max(steps(TECHNIQUE_PATTERNS["arp:C:rh"]["midis"])) > 2
+
+
+def test_technique_specs_carry_what_the_staff_draws():
+    for node_id in TECHNIQUE_NODES:
+        for _key, meta in node_items(NODE_BY_ID[node_id]):
+            assert len(meta["notes"]) == len(meta["midis"])
+            assert all(n["clef"] == meta["clef"] for n in meta["notes"])
+            assert [n["midi"] for n in meta["notes"]] == meta["midis"]

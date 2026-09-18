@@ -40,7 +40,21 @@ describe("the lesson list", () => {
   it("offers the reading drills on a note node", () => {
     renderHome();
     const buttons = [...cardFor("octave").querySelectorAll("button")].map(b => b.textContent);
-    expect(buttons).toEqual(["▶ Read notes", "Read phrases", "Line or space?"]);
+    expect(buttons).toEqual(["▶ Read notes", "Read phrases", "Line or space?", "In time"]);
+  });
+
+  it("keeps untimed phrase reading alongside the timed one", () => {
+    // Reading it at your own pace is the on-ramp to reading it in time.
+    renderHome();
+    const buttons = [...cardFor("octave").querySelectorAll("button")].map(b => b.textContent);
+    expect(buttons).toContain("Read phrases");
+    expect(buttons).toContain("In time");
+  });
+
+  it("offers the technique drill on a technique node", () => {
+    renderHome();
+    expect([...cardFor("technique-scales").querySelectorAll("button")].map(b => b.textContent))
+      .toEqual(["▶ Play the pattern"]);
   });
 
   it("offers the chord drill on the triads node", () => {

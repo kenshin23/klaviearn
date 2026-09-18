@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import Staff from "../components/Staff.jsx";
 import GrandStaff from "../components/GrandStaff.jsx";
 import IntervalStaff from "../components/IntervalStaff.jsx";
@@ -6,11 +6,13 @@ import PhraseStaff from "../components/PhraseStaff.jsx";
 import ChordStaff from "../components/ChordStaff.jsx";
 import EarPrompt from "../components/EarPrompt.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
-import RhythmPlay from "../components/RhythmPlay.jsx";
+import TimedPlay from "../components/TimedPlay.jsx";
+import TechniqueStaff from "../components/TechniqueStaff.jsx";
 import Keys from "../components/Keys.jsx";
-import { chordLabel, noteLabel, noteName, posLabel, t } from "../lib/i18n.js";
+import { chordLabel, noteLabel, noteName, posLabel, rhythmName, techniqueName, t } from "../lib/i18n.js";
 import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi, playPlan } from "../lib/audio.js";
 import { playbackPlan, planBeats } from "../lib/ear.js";
+import { expectNotes, expectTaps } from "../lib/evaluator.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
 
@@ -26,7 +28,7 @@ function scaffoldLevel(settings, exercise) {
   return exercise?.level ?? 0;
 }
 
-const scaffoldFlags = level => ({ letters: level === 0, colors: level <= 1 });
+const scaffoldFlags = level => ({ letters: level === 0, colors: level <= 1, fingers: level <= 1 });
 
 const isEarDrill = exercise => Boolean(exercise?.drill?.startsWith("ear-"));
 
@@ -155,6 +157,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       return;
     }
 
+    if (exercise.drill === "technique" || exercise.drill === "phrase-timed") {
+      tapRef.current?.(midi); // the take scores pitch as well as timing
+      return;
+    }
+
     if (exercise.drill === "phrase" || exercise.drill === "ear-phrase") {
       const current = exercise.notes[phrase.idx];
       if (matches(midi, current.midi, pitchClassOnly)) {
@@ -189,6 +196,26 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     } else {
       chimeWrong();
       dispatch({ type: "wrong", played: midi, message: `${t("You played")} ${noteName(midi)}` });
+    }
+  }
+
+  // A timed phrase credits each note separately: the take says which one was
+  // missed or fumbled, and that is the item the SRS should hear about.
+  function timedPhraseAttempt({ hit, verdicts }) {
+    const { state, exercise } = live.current;
+    if (state.phase !== "listen") return;
+    const entries = exercise.notes.map((note, i) => ({
+      item: note.item,
+      hit: verdicts[i]?.verdict === "ok" || verdicts[i]?.verdict === "early"
+        || verdicts[i]?.verdict === "late",
+      played: verdicts[i]?.verdict === "wrong" ? verdicts[i].played : null,
+    }));
+    if (hit) {
+      chimeCorrect();
+      dispatch({ type: "correct", entries, message: t("In time!") });
+    } else {
+      chimeWrong();
+      dispatch({ type: "wrong", message: t("Not quite — check the timing marks and go again.") });
     }
   }
 
@@ -243,7 +270,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     }
   }
 
-  function rhythmAttempt(hit) {
+  function timedAttempt({ hit }) {
     const { state, exercise } = live.current;
     if (state.phase !== "listen") return;
     if (hit) {
@@ -258,6 +285,18 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({ type: "wrong", message: t("Not quite — check the timing marks and go again.") });
     }
   }
+
+  // Held stable across renders on purpose. TimedPlay resets its scored take
+  // when `expected` changes identity, and building this inline meant every
+  // re-render — including the one scoring itself triggers — wiped the per-note
+  // verdicts before they could be read.
+  const timedExpected = useMemo(() => {
+    if (exercise.drill === "rhythm") return expectTaps(exercise.durations);
+    if (exercise.drill === "technique" || exercise.drill === "phrase-timed") {
+      return expectNotes(exercise.midis);
+    }
+    return null;
+  }, [exercise]);
 
   // The ear drills draw nothing, so the playback is the prompt: sound it as
   // soon as the exercise arrives, and again whenever asked.
@@ -385,8 +424,14 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       <section className={`card staff-card ${state.phase === "feedback" ? "flash-ok" : ""} ${state.message && state.phase === "listen" && !state.firstTry ? "flash-bad" : ""} size-${settings.staffSize}`}>
         {isEarDrill(exercise) ? (
           <EarPrompt beats={planBeats(earPlan)} onReplay={replay} />
-        ) : exercise.drill === "phrase" ? (
+        ) : exercise.drill === "phrase" || exercise.drill === "phrase-timed" ? (
           <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
+        ) : exercise.drill === "technique" ? (
+          <TechniqueStaff
+            exercise={exercise}
+            showFingers={scaffold.fingers}
+            showColor={scaffold.colors}
+          />
         ) : exercise.drill === "rhythm" ? (
           <RhythmStaff durations={exercise.durations} />
         ) : exercise.drill === "interval" ? (
@@ -425,6 +470,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             "ear-interval": "How far apart were those two notes?",
             "ear-chord": "Was that major or minor?",
             "ear-phrase": "Play those four notes back.",
+            technique: "Play it evenly, with the fingering shown.",
+            "phrase-timed": "Play the phrase in time with the metronome.",
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -518,11 +565,39 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       )}
 
       {exercise.drill === "rhythm" && (
-        <RhythmPlay
-          exercise={exercise}
-          onAttempt={rhythmAttempt}
-          registerTap={fn => { tapRef.current = fn; }}
+        <TimedPlay
+          expected={timedExpected}
+          label={rhythmName(exercise.name)}
+          onAttempt={timedAttempt}
+          registerInput={fn => { tapRef.current = fn; }}
+          tapPad
         />
+      )}
+
+      {exercise.drill === "phrase-timed" && (
+        <>
+          <TimedPlay
+            expected={timedExpected}
+            label={t("In time")}
+            onAttempt={timedPhraseAttempt}
+            registerInput={fn => { tapRef.current = fn; }}
+            strictOctave={settings.strictOctave}
+          />
+          <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
+        </>
+      )}
+
+      {exercise.drill === "technique" && (
+        <>
+          <TimedPlay
+            expected={timedExpected}
+            label={techniqueName(exercise.name)}
+            onAttempt={timedAttempt}
+            registerInput={fn => { tapRef.current = fn; }}
+            strictOctave={settings.strictOctave}
+          />
+          <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
+        </>
       )}
 
       <p className="inputs-status">

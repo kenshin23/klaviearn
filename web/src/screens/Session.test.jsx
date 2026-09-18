@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import Session from "./Session.jsx";
-import { chordSpec, noteMeta } from "../lib/notes.js";
+import { chordSpec, noteMeta, techniqueSpec } from "../lib/notes.js";
 import { setLocale } from "../lib/i18n.js";
 
 // The staff components are thin wrappers over VexFlow's SVG renderer. This
@@ -32,6 +32,16 @@ vi.mock("../components/PhraseStaff.jsx", () => ({
   default: ({ currentIdx }) => <div data-testid="phrase-staff" data-current={currentIdx} />,
 }));
 vi.mock("../components/RhythmStaff.jsx", () => ({ default: () => <div data-testid="rhythm-staff" /> }));
+vi.mock("../components/TechniqueStaff.jsx", () => ({
+  default: ({ exercise, showFingers, showColor }) => (
+    <div
+      data-testid="technique-staff"
+      data-pattern={exercise.pattern}
+      data-show-fingers={String(showFingers)}
+      data-show-color={String(showColor)}
+    />
+  ),
+}));
 
 // Keep the audio module real except for the one call the ear drills are
 // judged by: whether the exercise actually got sounded.
@@ -624,5 +634,145 @@ describe("the ear track in Spanish", () => {
     expect(statusText()).toContain("mayor o menor");
     fireEvent.click(screen.getByRole("button", { name: "☀ Mayor" }));
     expect(statusText()).toContain("Do mayor");
+  });
+});
+
+
+// --- Technique and timed playing --------------------------------------------
+
+const SPB = (60 / 80) * 1000;
+const COUNT_IN = 4;
+const START_DELAY = 250;
+
+const technique = (pattern = "arp:C:rh", over = {}) => ({
+  item: `tech:${pattern}`, drill: "technique", level: 0, ...techniqueSpec(pattern), ...over,
+});
+const timedPhrase = (over = {}) => ({
+  drill: "phrase-timed", level: 0,
+  notes: [60, 64, 67, 72].map(m => ({ item: `treble:${m}`, level: 0, ...noteMeta("treble", m) })),
+  midis: [60, 64, 67, 72], ...over,
+});
+
+/** Run a take: count in, play the given notes on the beat, then score. */
+function take(midis) {
+  fireEvent.click(screen.getByRole("button", { name: "▶ Count-in & play" }));
+  act(() => { vi.advanceTimersByTime(START_DELAY + COUNT_IN * SPB); });
+  for (let i = 0; i < midis.length; i++) {
+    if (i > 0) act(() => { vi.advanceTimersByTime(SPB); });
+    fireEvent.keyDown(document, { key: NAMES[midis[i] % 12] });
+  }
+  act(() => { vi.advanceTimersByTime(SPB * (midis.length + 2) + 500); });
+}
+const NAMES = { 0: "c", 2: "d", 4: "e", 5: "f", 7: "g", 9: "a", 11: "b" };
+
+describe("the technique drill", () => {
+  it("draws the pattern with its fingering while it is new", () => {
+    renderSession([technique("arp:C:rh", { level: 0 })]);
+    const staff = screen.getByTestId("technique-staff");
+    expect(staff).toHaveAttribute("data-pattern", "arp:C:rh");
+    expect(staff).toHaveAttribute("data-show-fingers", "true");
+    expect(statusText()).toContain("Play it evenly, with the fingering shown");
+  });
+
+  it("withdraws the fingering once the pattern is mastered", () => {
+    renderSession([technique("arp:C:rh", { level: 2 })]);
+    expect(screen.getByTestId("technique-staff")).toHaveAttribute("data-show-fingers", "false");
+  });
+
+  it("counts you in and offers a preview", () => {
+    renderSession([technique()]);
+    expect(screen.getByRole("button", { name: "▶ Count-in & play" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "🔊 Hear it" })).toBeInTheDocument();
+  });
+
+  it("gives you a keyboard, not a tap pad — you play the notes", () => {
+    renderSession([technique()]);
+    expect(document.querySelectorAll(".keys .key")).toHaveLength(7);
+    expect(screen.queryByRole("button", { name: "Tap the rhythm here" })).not.toBeInTheDocument();
+  });
+
+  it("passes a take played in order and in time", () => {
+    const { onFinish } = renderSession([technique("arp:C:rh")]);
+    take(techniqueSpec("arp:C:rh").midis);
+    expect(statusText()).toContain("Locked in");
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([
+      { item: "tech:arp:C:rh", hit: true, played: null },
+    ]);
+  });
+
+  it("fails a take that plays the wrong notes", () => {
+    renderSession([technique("arp:C:rh")]);
+    take([60, 62, 64, 65, 62, 60, 62]);
+    expect(statusText()).toContain("Not quite");
+  });
+});
+
+describe("timed phrase reading", () => {
+  it("still draws the phrase, now against the metronome", () => {
+    renderSession([timedPhrase()]);
+    expect(screen.getByTestId("phrase-staff")).toBeInTheDocument();
+    expect(statusText()).toContain("in time with the metronome");
+    expect(screen.getByRole("button", { name: "▶ Count-in & play" })).toBeInTheDocument();
+  });
+
+  it("passes a phrase played in time and credits every note", () => {
+    const { onFinish } = renderSession([timedPhrase()]);
+    take([60, 64, 67, 72]);
+    expect(statusText()).toContain("In time");
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([
+      { item: "treble:60", hit: true, played: null },
+      { item: "treble:64", hit: true, played: null },
+      { item: "treble:67", hit: true, played: null },
+      { item: "treble:72", hit: true, played: null },
+    ]);
+  });
+
+  it("blames only the note that was fumbled", () => {
+    const { onFinish } = renderSession([timedPhrase()]);
+    take([60, 62, 67, 72]); // D instead of E on beat 2
+    advance();
+    const results = onFinish.mock.calls[0]?.[0];
+    expect(results).toBeUndefined(); // a failed take does not end the exercise
+    expect(statusText()).toContain("Not quite");
+  });
+
+  it("leaves the untimed phrase drill alone", () => {
+    renderSession([{
+      drill: "phrase", level: 0,
+      notes: [60, 64, 67, 72].map(m => ({ item: `treble:${m}`, level: 0, ...noteMeta("treble", m) })),
+    }]);
+    expect(statusText()).toContain("Play the phrase, left to right");
+    expect(screen.queryByRole("button", { name: "▶ Count-in & play" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the verdicts stay on screen", () => {
+  // Regression: `expected` was built inline in render, so every re-render
+  // handed TimedPlay a new array identity and its reset effect wiped the
+  // scored take. The per-note verdicts are the whole point of a timed drill —
+  // they flashed and vanished before anyone could read them.
+  it("survives the re-render that scoring itself causes (technique)", () => {
+    renderSession([technique("arp:C:rh")]);
+    take(techniqueSpec("arp:C:rh").midis);
+    expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
+  });
+
+  it("survives it for a failed take too, where they matter most", () => {
+    renderSession([technique("arp:C:rh")]);
+    take([60, 62, 64, 65, 62, 60, 62]);
+    expect(statusText()).toContain("Not quite");
+    expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
+  });
+
+  it("survives for the rhythm drill", () => {
+    renderSession([{
+      item: "rhythm:r-quarters", drill: "rhythm", level: 0,
+      name: "Four steady quarters", durations: ["q", "q", "q", "q"],
+    }]);
+    fireEvent.click(screen.getByRole("button", { name: "▶ Count-in & play" }));
+    act(() => { vi.advanceTimersByTime(START_DELAY + COUNT_IN * SPB + SPB * 5 + 500); });
+    expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
   });
 });
