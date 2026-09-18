@@ -35,15 +35,22 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phases 1–5 built.** A FastAPI backend in [`server/`](server/) with
-accounts, spaced repetition (SM-2 variant), per-note scaffold fading, XP and
+**Phases 1–6 built.** A FastAPI backend in [`server/`](server/) with
+accounts, spaced repetition (SM-2 variant), per-item scaffold fading, XP and
 day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
 works logged-in (server is the source of truth) or as an offline guest
-(localStorage). Twelve skill nodes across seven drills: note reading (treble,
-bass, and grand staff), line-or-space discrimination, 4-note phrase reading,
-interval recognition, metronome rhythm tapping, and root-position triads
-played as a chord. A stats dashboard shows your confusion matrix ("seeing C,
-you played D ×3") and per-note accuracy.
+(localStorage). Sixteen skill nodes across ten drills.
+
+**Reading and rhythm:** notes on the treble, bass and grand staff;
+line-or-space discrimination; 4-note phrases; intervals as shapes; metronome
+rhythm tapping; root-position triads played as a chord.
+
+**Ear:** match a pitch you hear, name an interval by ear, tell major from
+minor, and play a four-note phrase back — all with nothing on screen, which
+makes them the drills that need no visual acuity at all.
+
+A stats dashboard shows your confusion matrix ("seeing C, you played D ×3")
+and per-item accuracy.
 
 ```bash
 # API (Python 3.11 via asdf — see .tool-versions)
@@ -123,6 +130,6 @@ python3 -m http.server 8000 --directory phase0
 4. ~~**Phase 3** — rhythm + metronome, phrase reading, intervals, grand staff, PWA~~ ✅
 5. ~~**Phase 4** — error-pattern stats (confusion matrix), mic input~~ ✅
 6. ~~**Phase 5** — polyphonic input, accidentals, triad drill~~ ✅
-7. **Next** — the ear track (play back what you hear), then technique with a
-   shared timed evaluator, then real repertoire. See
-   [DESIGN.md](DESIGN.md#8-roadmap).
+7. ~~**Phase 6** — the ear track: pitch, interval, chord quality, phrase playback~~ ✅
+8. **Next** — technique with a shared timed evaluator, then real repertoire.
+   See [DESIGN.md](DESIGN.md#8-roadmap).

@@ -72,7 +72,7 @@ export function noteSpec(midi, clef = "treble") {
 
 // --- Chords -----------------------------------------------------------------
 export const CHORD_QUALITIES = { maj: [0, 4, 7], min: [0, 3, 7] };
-const QUALITY_NAMES = { maj: "major", min: "minor" };
+export const QUALITY_NAMES = { maj: "major", min: "minor" };
 
 export const chordKey = (root, quality) =>
   `chord:${PC_LETTER[root % 12]}${PC_ACC[root % 12]}:${quality}`;
@@ -91,6 +91,16 @@ export function chordSpec(root, quality) {
     chord: true,
   };
 }
+
+// --- Ear training -----------------------------------------------------------
+// The same octave the reading track covers. Hearing a C and seeing a C are
+// different skills, so these are their own SRS items under an "ear:" prefix.
+export const EAR_MIDIS = [60, 62, 64, 65, 67, 69, 71, 72];
+// Roots the quality drill builds its triads on, randomised per exercise so
+// the answer is the sound of the third, not a memorised pitch.
+export const EAR_CHORD_ROOTS = [60, 62, 64, 65, 67, 69];
+
+export const earKey = midi => `ear:${midi}`;
 
 export const SKILL_NODES = [
   {
@@ -170,6 +180,35 @@ export const SKILL_NODES = [
     blurb: "Both staves together — middle C is the bridge between your hands.",
   },
   {
+    id: "ear-pitch",
+    kind: "ear-pitch",
+    title: "Match the pitch",
+    blurb: "Hear a note, find it on your piano. Nothing on screen — this one is all ear.",
+    midis: EAR_MIDIS,
+  },
+  {
+    id: "ear-intervals",
+    kind: "ear-intervals",
+    title: "Intervals by ear",
+    blurb: "Two notes, no notation. Name the distance from the sound alone.",
+    sizes: [2, 3, 4, 5],
+  },
+  {
+    id: "ear-chords",
+    kind: "ear-chords",
+    title: "Major or minor?",
+    blurb: "One semitone is the whole difference. Hear a triad and name its quality.",
+    qualities: ["maj", "min"],
+    roots: EAR_CHORD_ROOTS,
+  },
+  {
+    id: "ear-phrases",
+    kind: "ear-phrases",
+    title: "Play it back",
+    blurb: "Four notes, then your turn — the way you'd pick up a tune by ear.",
+    midis: EAR_MIDIS,
+  },
+  {
     id: "chords",
     kind: "chords",
     title: "Triads",
@@ -200,6 +239,15 @@ export const nodeItemKeys = node => {
       );
     case "chords":
       return node.triads.map(([root, quality]) => chordKey(root, quality));
+    // Shared keys: the pitch drill and the phrase drill train the same
+    // "which note is that?" recall, so they feed one SRS item per note.
+    case "ear-pitch":
+    case "ear-phrases":
+      return node.midis.map(earKey);
+    case "ear-intervals":
+      return node.sizes.map(s => `ear:int:${s}`);
+    case "ear-chords":
+      return node.qualities.map(q => `ear:qual:${q}`);
     default:
       return node.midis.map(m => itemKey(node.clef, m));
   }

@@ -4,20 +4,31 @@ import GrandStaff from "../components/GrandStaff.jsx";
 import IntervalStaff from "../components/IntervalStaff.jsx";
 import PhraseStaff from "../components/PhraseStaff.jsx";
 import ChordStaff from "../components/ChordStaff.jsx";
+import EarPrompt from "../components/EarPrompt.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
 import RhythmPlay from "../components/RhythmPlay.jsx";
 import Keys from "../components/Keys.jsx";
 import { chordLabel, noteLabel, noteName, posLabel, t } from "../lib/i18n.js";
-import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi } from "../lib/audio.js";
+import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi, playPlan } from "../lib/audio.js";
+import { playbackPlan, planBeats } from "../lib/ear.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
 
-// Which training wheels to show: explicit modes pin a level; "auto" uses the
-// per-note SRS scaffold level (0 letters+colors, 1 colors, 2 plain).
-function scaffoldFlags(mode, level) {
-  const lvl = mode === "full" ? 0 : mode === "colors" ? 1 : mode === "plain" ? 2 : level;
-  return { letters: lvl === 0, colors: lvl <= 1 };
+// Which scaffold level applies: explicit modes pin one, "auto" follows the
+// item's own SRS level. The reading drills spend it on letters and colours
+// (0 letters+colors, 1 colors, 2 plain); the ear drills spend it on how hard
+// the exercise is to listen to — see lib/ear.js.
+function scaffoldLevel(settings, exercise) {
+  const { scaffold: mode } = settings;
+  if (mode === "full") return 0;
+  if (mode === "colors") return 1;
+  if (mode === "plain") return 2;
+  return exercise?.level ?? 0;
 }
+
+const scaffoldFlags = level => ({ letters: level === 0, colors: level <= 1 });
+
+const isEarDrill = exercise => Boolean(exercise?.drill?.startsWith("ear-"));
 
 // The exercise state machine: listen → feedback → (next | done).
 // `results` is one entry per SRS item (a phrase contributes several);
@@ -144,7 +155,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       return;
     }
 
-    if (exercise.drill === "phrase") {
+    if (exercise.drill === "phrase" || exercise.drill === "ear-phrase") {
       const current = exercise.notes[phrase.idx];
       if (matches(midi, current.midi, pitchClassOnly)) {
         if (phrase.idx + 1 >= exercise.notes.length) {
@@ -167,7 +178,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       return;
     }
 
-    if (exercise.drill !== "note") return;
+    if (exercise.drill !== "note" && exercise.drill !== "ear-pitch") return;
     if (matches(midi, exercise.midi, pitchClassOnly)) {
       chimeCorrect();
       dispatch({
@@ -199,7 +210,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
 
   function answerInterval(size) {
     const { state, exercise } = live.current;
-    if (state.phase !== "listen" || exercise.drill !== "interval") return;
+    if (state.phase !== "listen") return;
+    if (exercise.drill !== "interval" && exercise.drill !== "ear-interval") return;
     if (size === exercise.size) {
       chimeCorrect();
       dispatch({
@@ -210,6 +222,24 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     } else {
       chimeWrong();
       dispatch({ type: "wrong", message: t("Look at the gap between the noteheads and try again.") });
+    }
+  }
+
+  function answerQuality(quality) {
+    const { state, exercise } = live.current;
+    if (state.phase !== "listen" || exercise.drill !== "ear-chord") return;
+    if (quality === exercise.quality) {
+      chimeCorrect();
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
+        // Name the chord it actually was: the point is to attach the sound to
+        // something, and "major" alone teaches less than "that was F major".
+        message: `${t("Yes —")} ${chordLabel(exercise.rootName, exercise.quality)}.`,
+      });
+    } else {
+      chimeWrong();
+      dispatch({ type: "wrong", message: t("Listen to the middle note — is it bright or dark?") });
     }
   }
 
@@ -228,6 +258,16 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       dispatch({ type: "wrong", message: t("Not quite — check the timing marks and go again.") });
     }
   }
+
+  // The ear drills draw nothing, so the playback is the prompt: sound it as
+  // soon as the exercise arrives, and again whenever asked.
+  const earPlan = isEarDrill(exercise) ? playbackPlan(exercise, scaffoldLevel(settings, exercise)) : null;
+  const replay = () => { if (earPlan) playPlan(earPlan); };
+  useEffect(() => {
+    if (!isEarDrill(state.exercises[state.idx])) return;
+    const ex = state.exercises[state.idx];
+    playPlan(playbackPlan(ex, scaffoldLevel(settings, ex)));
+  }, [state.idx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-advance after the green moment (longer for rhythm: read the verdicts).
   useEffect(() => {
@@ -322,8 +362,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     );
   }
 
-  const scaffold = scaffoldFlags(settings.scaffold, exercise.level);
-  const isPitchDrill = exercise.drill === "note" || exercise.drill === "phrase";
+  const scaffold = scaffoldFlags(scaffoldLevel(settings, exercise));
+  // Drills answered by playing a pitch: they all want the keyboard, and the
+  // reading ones also want the mic and a "hear it" button.
+  const isPitchDrill = ["note", "phrase", "ear-pitch", "ear-phrase"].includes(exercise.drill);
+  const isReadingPitchDrill = exercise.drill === "note" || exercise.drill === "phrase";
 
   return (
     <main className="screen">
@@ -340,7 +383,9 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       </div>
 
       <section className={`card staff-card ${state.phase === "feedback" ? "flash-ok" : ""} ${state.message && state.phase === "listen" && !state.firstTry ? "flash-bad" : ""} size-${settings.staffSize}`}>
-        {exercise.drill === "phrase" ? (
+        {isEarDrill(exercise) ? (
+          <EarPrompt beats={planBeats(earPlan)} onReplay={replay} />
+        ) : exercise.drill === "phrase" ? (
           <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
         ) : exercise.drill === "rhythm" ? (
           <RhythmStaff durations={exercise.durations} />
@@ -376,6 +421,10 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             rhythm: "Tap this rhythm with the metronome.",
             interval: "How far apart are these notes?",
             chord: "Play all three notes together.",
+            "ear-pitch": "Play the note you just heard.",
+            "ear-interval": "How far apart were those two notes?",
+            "ear-chord": "Was that major or minor?",
+            "ear-phrase": "Play those four notes back.",
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -397,17 +446,32 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             >
               {mic.status === "listening" ? t("🎤 Listening…") : t("🎤 Start microphone")}
             </button>
-            <button
-              className="btn"
-              onClick={() =>
-                playMidi(exercise.drill === "phrase" ? exercise.notes[phrase.idx].midi : exercise.midi)
-              }
-            >
-              {t("🔊 Hear it")}
-            </button>
+            {/* Not on the ear drills: "hear it" there would be the answer.
+                EarPrompt's replay sounds the exercise instead. */}
+            {isReadingPitchDrill && (
+              <button
+                className="btn"
+                onClick={() =>
+                  playMidi(exercise.drill === "phrase" ? exercise.notes[phrase.idx].midi : exercise.midi)
+                }
+              >
+                {t("🔊 Hear it")}
+              </button>
+            )}
           </div>
           <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
         </>
+      )}
+
+      {exercise.drill === "ear-chord" && (
+        <div className="row linespace">
+          <button className="btn answer" onClick={() => answerQuality("maj")}>
+            {t("☀ Major")}
+          </button>
+          <button className="btn answer" onClick={() => answerQuality("min")}>
+            {t("☾ Minor")}
+          </button>
+        </div>
       )}
 
       {exercise.drill === "chord" && (
@@ -443,7 +507,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
         </div>
       )}
 
-      {exercise.drill === "interval" && (
+      {(exercise.drill === "interval" || exercise.drill === "ear-interval") && (
         <div className="row">
           {[2, 3, 4, 5].map(size => (
             <button key={size} className="btn answer" onClick={() => answerInterval(size)}>

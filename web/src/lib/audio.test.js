@@ -1,4 +1,6 @@
-import { audioContext, chimeCorrect, chimeWrong, click, playChord, playMidi, tick, tone } from "./audio.js";
+import {
+  audioContext, chimeCorrect, chimeWrong, click, playChord, playMidi, playPlan, tick, tone,
+} from "./audio.js";
 
 /** Count how many oscillators a call schedules, and at what frequencies. */
 function capture(fn) {
@@ -62,5 +64,54 @@ describe("playing pitches back", () => {
 
   it("accepts an explicit tone spec", () => {
     expect(capture(() => tone(880, 0.2, "square", 0, 0.1))).toEqual([880]);
+  });
+});
+
+describe("playing an ear-drill plan", () => {
+  it("sounds every note of every step", () => {
+    const freqs = capture(() => playPlan([
+      { midis: [60], at: 0 },
+      { midis: [64, 67], at: 0.5 },
+    ]));
+    expect(freqs).toHaveLength(3);
+  });
+
+  it("sounds a chord step together", () => {
+    expect(capture(() => playPlan([{ midis: [60, 64, 67], at: 0 }]))).toHaveLength(3);
+  });
+
+  it("copes with an empty plan", () => {
+    expect(capture(() => playPlan([]))).toEqual([]);
+  });
+
+  it("plays each step at its own pitch", () => {
+    expect(capture(() => playPlan([{ midis: [69], at: 0 }]))).toEqual([440]);
+  });
+});
+
+describe("waking a suspended audio context", () => {
+  it("resumes before scheduling, or the ear drills are silent", () => {
+    const ctx = audioContext();
+    ctx.state = "suspended";
+    const resume = vi.spyOn(ctx, "resume").mockResolvedValue();
+    playPlan([{ midis: [60], at: 0 }]);
+    expect(resume).toHaveBeenCalled();
+    ctx.state = "running";
+  });
+
+  it("does not bother when it is already running", () => {
+    const ctx = audioContext();
+    ctx.state = "running";
+    const resume = vi.spyOn(ctx, "resume").mockResolvedValue();
+    playPlan([{ midis: [60], at: 0 }]);
+    expect(resume).not.toHaveBeenCalled();
+  });
+
+  it("survives a browser that refuses to resume", () => {
+    const ctx = audioContext();
+    ctx.state = "suspended";
+    vi.spyOn(ctx, "resume").mockRejectedValue(new Error("blocked"));
+    expect(() => playPlan([{ midis: [60], at: 0 }])).not.toThrow();
+    ctx.state = "running";
   });
 });

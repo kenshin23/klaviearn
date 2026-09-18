@@ -29,6 +29,24 @@ export const playMidi = m => tone(midiToFreq(m), 0.9, "triangle");
 export const playChord = midis =>
   midis.forEach(m => tone(midiToFreq(m), 1.1, "triangle", 0, 0.16));
 
+// Play a plan from lib/ear.js: a list of { midis, at }. Everything is
+// scheduled on the audio clock in one go rather than with setTimeout, so the
+// gaps stay even while the main thread is busy rendering.
+export function playPlan(plan) {
+  // The ear drills are nothing BUT the sound, so a suspended context is not a
+  // silent degradation here — it is a blank exercise. Chrome starts one
+  // suspended until a real user gesture, and a session can be entered in ways
+  // that leave it that way, so ask for it back before scheduling anything.
+  const ctx = audioContext();
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  for (const { midis, at } of plan) {
+    const together = midis.length > 1;
+    for (const m of midis) {
+      tone(midiToFreq(m), together ? 1.1 : 0.6, "triangle", at, together ? 0.16 : 0.22);
+    }
+  }
+}
+
 // Metronome click scheduled on the audio clock (precise, unlike setTimeout).
 export function click(when, accent = false) {
   const ctx = audioContext();

@@ -106,6 +106,19 @@ def chord_spec(root: int, quality: str) -> dict:
     }
 
 
+# --- Ear training ------------------------------------------------------------
+# The same octave the reading track covers. Hearing a C and seeing a C are
+# different skills, so these are their own SRS items under an "ear:" prefix.
+EAR_MIDIS = [60, 62, 64, 65, 67, 69, 71, 72]
+# Roots the quality drill builds its triads on. Randomised per exercise so the
+# answer is the sound of the third, not a memorised pitch.
+EAR_CHORD_ROOTS = [60, 62, 64, 65, 67, 69]
+
+
+def ear_key(midi: int) -> str:
+    return f"ear:{midi}"
+
+
 SKILL_NODES = [
     {
         "id": "guide",
@@ -190,6 +203,35 @@ SKILL_NODES = [
         "blurb": "Both staves together — middle C is the bridge between your hands.",
     },
     {
+        "id": "ear-pitch",
+        "kind": "ear-pitch",
+        "title": "Match the pitch",
+        "blurb": "Hear a note, find it on your piano. Nothing on screen — this one is all ear.",
+        "midis": EAR_MIDIS,
+    },
+    {
+        "id": "ear-intervals",
+        "kind": "ear-intervals",
+        "title": "Intervals by ear",
+        "blurb": "Two notes, no notation. Name the distance from the sound alone.",
+        "sizes": [2, 3, 4, 5],
+    },
+    {
+        "id": "ear-chords",
+        "kind": "ear-chords",
+        "title": "Major or minor?",
+        "blurb": "One semitone is the whole difference. Hear a triad and name its quality.",
+        "qualities": ["maj", "min"],
+        "roots": EAR_CHORD_ROOTS,
+    },
+    {
+        "id": "ear-phrases",
+        "kind": "ear-phrases",
+        "title": "Play it back",
+        "blurb": "Four notes, then your turn — the way you'd pick up a tune by ear.",
+        "midis": EAR_MIDIS,
+    },
+    {
         "id": "chords",
         "kind": "chords",
         "title": "Triads",
@@ -235,6 +277,20 @@ def node_items(node):
         return [
             (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
             for size in node["sizes"]
+        ]
+    if kind in ("ear-pitch", "ear-phrases"):
+        # Shared keys: the pitch drill and the phrase drill train the same
+        # "which note is that?" recall, so they feed one SRS item per note.
+        return [(ear_key(midi), note_spec(midi)) for midi in node["midis"]]
+    if kind == "ear-intervals":
+        return [
+            (f"ear:int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
+            for size in node["sizes"]
+        ]
+    if kind == "ear-chords":
+        return [
+            (f"ear:qual:{quality}", {"quality": quality, "name": QUALITY_NAMES[quality]})
+            for quality in node["qualities"]
         ]
     if kind == "chords":
         return [

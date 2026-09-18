@@ -127,3 +127,75 @@ describe("weighting by past performance", () => {
     expect(() => buildSession(node("guide"), "note", stats)).not.toThrow();
   });
 });
+
+describe("the ear track", () => {
+  it.each([
+    ["ear-pitch", "ear-pitch", SESSION_LENGTH],
+    ["ear-intervals", "ear-interval", SESSION_LENGTH],
+    ["ear-chords", "ear-chord", SESSION_LENGTH],
+    ["ear-phrases", "ear-phrase", PHRASE_COUNT],
+  ])("%s builds %i exercises offline too", (id, drill, count) => {
+    expect(buildSession(node(id), drill, NO_STATS)).toHaveLength(count);
+  });
+
+  it("gives every ear exercise something to play", () => {
+    for (const [id, drill] of [
+      ["ear-pitch", "ear-pitch"], ["ear-intervals", "ear-interval"],
+      ["ear-chords", "ear-chord"], ["ear-phrases", "ear-phrase"],
+    ]) {
+      for (const ex of buildSession(node(id), drill, NO_STATS)) {
+        const midis = ex.midis ?? [ex.midi];
+        expect(midis.length, drill).toBeGreaterThan(0);
+        expect(midis.every(m => m >= 21 && m <= 108), drill).toBe(true);
+        expect(ex.drill).toBe(drill);
+      }
+    }
+  });
+
+  it.each([
+    ["ear-pitch", "ear-pitch"],
+    ["ear-intervals", "ear-interval"],
+    ["ear-chords", "ear-chord"],
+  ])("draws %s items from its own pool", (id, drill) => {
+    const valid = new Set(nodeItemKeys(node(id)));
+    const items = buildSession(node(id), drill, NO_STATS).map(e => e.item);
+    expect(items).not.toContain(undefined);
+    for (const item of items) expect(valid.has(item), item).toBe(true);
+  });
+
+  it("keeps ear progress out of the reading track's items", () => {
+    const ear = buildSession(node("ear-pitch"), "ear-pitch", NO_STATS).map(e => e.item);
+    expect(ear.every(i => i.startsWith("ear:"))).toBe(true);
+  });
+
+  it("moves the root of the quality drill around", () => {
+    const roots = new Set(
+      buildSession(node("ear-chords"), "ear-chord", NO_STATS, 60).map(e => e.root),
+    );
+    expect(roots.size).toBeGreaterThan(1);
+  });
+
+  it("builds the triad its item names", () => {
+    for (const ex of buildSession(node("ear-chords"), "ear-chord", NO_STATS, 30)) {
+      const [root, third, fifth] = ex.midis;
+      expect(fifth - root).toBe(7);
+      expect(third - root).toBe(ex.quality === "maj" ? 4 : 3);
+      expect(ex.item).toBe(`ear:qual:${ex.quality}`);
+    }
+  });
+
+  it("spans the named distance in ear intervals", () => {
+    const scale = Object.keys(NOTES.treble).map(Number).sort((a, b) => a - b);
+    for (const ex of buildSession(node("ear-intervals"), "ear-interval", NO_STATS)) {
+      const [low, high] = ex.midis;
+      expect(scale.indexOf(high) - scale.indexOf(low)).toBe(ex.size - 1);
+    }
+  });
+
+  it("gives ear phrases four notes and their midis", () => {
+    for (const ex of buildSession(node("ear-phrases"), "ear-phrase", NO_STATS)) {
+      expect(ex.notes).toHaveLength(PHRASE_NOTES);
+      expect(ex.midis).toEqual(ex.notes.map(n => n.midi));
+    }
+  });
+});

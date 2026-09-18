@@ -2,12 +2,14 @@
 import pytest
 
 from app.content import (
+    EAR_MIDIS,
     NODE_BY_ID,
     NOTES,
     RHYTHM_PATTERNS,
     SKILL_NODES,
     chord_key,
     chord_spec,
+    ear_key,
     item_key,
     node_items,
     note_spec,
@@ -189,6 +191,64 @@ def test_item_metadata_carries_what_each_drill_renders():
                 assert len(meta["midis"]) == 3
                 assert len(meta["notes"]) == 3
                 assert meta["clef"] == "treble"
+            elif kind in ("ear-pitch", "ear-phrases"):
+                assert meta["midi"] and meta["letter"]
+            elif kind == "ear-intervals":
+                assert meta["size"] >= 2 and meta["name"]
+            elif kind == "ear-chords":
+                assert meta["quality"] in ("maj", "min") and meta["name"]
             else:
                 assert meta["key"] and meta["letter"] and meta["clef"]
                 assert meta["pos"] in ("line", "space")
+
+
+# --- The ear track -----------------------------------------------------------
+
+EAR_NODES = ["ear-pitch", "ear-intervals", "ear-chords", "ear-phrases"]
+
+
+def test_ear_items_are_namespaced_and_fit_the_schema():
+    for node_id in EAR_NODES:
+        for key, _ in node_items(NODE_BY_ID[node_id]):
+            assert key.startswith("ear:"), key
+            assert len(key) <= MAX_ITEM_KEY
+
+
+def test_hearing_a_note_is_a_different_item_from_seeing_it():
+    """Same pitch, different skill — so a separate schedule."""
+    ear = {k for k, _ in node_items(NODE_BY_ID["ear-pitch"])}
+    read = {k for k, _ in node_items(NODE_BY_ID["octave"])}
+    assert ear.isdisjoint(read)
+    assert ear_key(60) == "ear:60"
+
+
+def test_the_pitch_and_phrase_drills_share_one_schedule_per_note():
+    """Both train "which note is that?", so they must not split the evidence."""
+    pitch = [k for k, _ in node_items(NODE_BY_ID["ear-pitch"])]
+    phrase = [k for k, _ in node_items(NODE_BY_ID["ear-phrases"])]
+    assert pitch == phrase
+
+
+def test_the_ear_range_matches_the_reading_curriculum():
+    assert sorted(NOTES["treble"]) == EAR_MIDIS
+
+
+def test_ear_chord_items_are_qualities_not_specific_chords():
+    """The drill asks major-or-minor, so C major and F major are one item."""
+    keys = [k for k, _ in node_items(NODE_BY_ID["ear-chords"])]
+    assert keys == ["ear:qual:maj", "ear:qual:min"]
+
+
+def test_every_ear_chord_root_can_be_built_in_both_qualities():
+    for root in NODE_BY_ID["ear-chords"]["roots"]:
+        for quality in ("maj", "min"):
+            spec = chord_spec(root, quality)
+            assert len(spec["midis"]) == 3
+            assert spec["midis"][0] == root
+
+
+def test_ear_nodes_carry_no_notation_requirement():
+    """Nothing in an ear item should imply a staff — these drills draw none."""
+    for node_id in ("ear-intervals", "ear-chords"):
+        for _key, meta in node_items(NODE_BY_ID[node_id]):
+            assert "pos" not in meta

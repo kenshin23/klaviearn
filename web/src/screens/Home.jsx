@@ -15,6 +15,10 @@ const DRILLS = {
   intervals: [["interval", "▶ Name the interval", "primary"]],
   grand: [["note", "▶ Read notes", "primary"]],
   chords: [["chord", "▶ Play the chord", "primary"]],
+  "ear-pitch": [["ear-pitch", "▶ Match the pitch", "primary"]],
+  "ear-intervals": [["ear-interval", "▶ Name what you hear", "primary"]],
+  "ear-chords": [["ear-chord", "▶ Major or minor?", "primary"]],
+  "ear-phrases": [["ear-phrase", "▶ Play it back", "primary"]],
 };
 
 export default function Home({ nodes, me, settings, onSettings, onStart, onStats, onLogout, onSignup }) {
@@ -43,6 +47,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
                 {node.kind === "rhythm" ? "𝅘𝅥𝅮 "
                   : node.kind === "intervals" ? "⤢ "
                   : node.kind === "chords" ? "🎹 "
+                  : node.kind?.startsWith("ear-") ? "👂 "
                   : node.kind === "grand" ? "𝄞𝄢 "
                   : node.clef === "bass" ? "𝄢 " : "𝄞 "}
                 {nodeText(node).title}

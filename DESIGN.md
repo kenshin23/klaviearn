@@ -328,10 +328,26 @@ accidentals in the note data, and a triad drill (primary chords, then minors,
 then one that needs a black key). The smallest change that unlocks the most:
 nothing in phases 6–8 is possible without it.
 
-**Phase 6 — The ear track.** Play-back drills — hear a pitch, an interval, a
-chord, a four-note phrase; reproduce it with nothing on screen. Cheap to build
-on top of phase 5's chord comparison, and the most accessible thing in the
-app.
+**Phase 6 — The ear track.** *Built.* Play-back drills — hear a pitch, an
+interval, a chord, a four-note phrase; reproduce it with nothing on screen.
+Cheap to build on top of phase 5's chord comparison, and the most accessible
+thing in the app.
+
+The scaffold system needed rethinking here rather than reusing. Letters and
+colours are meaningless with no notation on screen, and the obvious
+substitute — showing the note name — *is* the answer. So the per-item SRS
+level buys difficulty in the listening instead (`web/src/lib/ear.js`):
+
+| Drill | L0 | L1 | L2 |
+|-------|----|----|----|
+| Match the pitch | a reference C sounds first, to measure against | the note alone | the note alone |
+| Intervals by ear | the notes one after another, slowly | the same, quicker | both together |
+| Major or minor | arpeggiated, then repeated as a block | arpeggiated | the block chord alone |
+| Play it back | wide gaps between notes | narrower | at tempo |
+
+Same ladder shape as the visual scaffolds — full support that withdraws as
+the item is mastered — spent on a channel that has nothing to do with
+eyesight.
 
 **Phase 7 — Technique and the timed evaluator.** Generalize rhythm scoring
 into the shared evaluator. Five-finger positions, fingering as a scaffold

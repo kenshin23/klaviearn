@@ -258,3 +258,85 @@ def test_get_or_create_is_idempotent(db, user_id):
     second = srs.get_or_create(db, user_id, "treble:64")
     assert first is second
     assert second.ease == 2.5 and second.level == 0
+
+
+# --- The ear track -----------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("node_id", "drill", "count"),
+    [
+        ("ear-pitch", "ear-pitch", srs.SESSION_LENGTH),
+        ("ear-intervals", "ear-interval", srs.SESSION_LENGTH),
+        ("ear-chords", "ear-chord", srs.SESSION_LENGTH),
+        ("ear-phrases", "ear-phrase", srs.PHRASE_COUNT),
+    ],
+)
+def test_ear_session_length(db, user_id, node_id, drill, count):
+    assert len(srs.build_session(db, user_id, NODE_BY_ID[node_id], drill)) == count
+
+
+def test_every_ear_exercise_carries_something_to_play(db, user_id):
+    """These drills draw nothing, so the audio payload is the whole exercise."""
+    for node_id, drill in [
+        ("ear-pitch", "ear-pitch"),
+        ("ear-intervals", "ear-interval"),
+        ("ear-chords", "ear-chord"),
+        ("ear-phrases", "ear-phrase"),
+    ]:
+        for ex in srs.build_session(db, user_id, NODE_BY_ID[node_id], drill):
+            midis = ex["midis"] if "midis" in ex else [ex["midi"]]
+            assert midis, f"{drill} has nothing to play"
+            assert all(21 <= m <= 108 for m in midis), f"{drill} is off the keyboard"
+            assert ex["drill"] == drill
+
+
+def test_the_ear_interval_drill_reuses_the_reading_drills_shapes(db, user_id):
+    scale = sorted(NOTES["treble"])
+    for ex in srs.build_session(db, user_id, NODE_BY_ID["ear-intervals"], "ear-interval"):
+        low, high = ex["midis"]
+        assert scale.index(high) - scale.index(low) == ex["size"] - 1
+        assert ex["item"] == f"ear:int:{ex['size']}"
+
+
+def test_the_quality_drill_moves_the_root_around(db, user_id):
+    """A fixed root would let you answer from absolute pitch, not from the third."""
+    exercises = srs.build_session(db, user_id, NODE_BY_ID["ear-chords"], "ear-chord", length=60)
+    assert len({ex["root"] for ex in exercises}) > 1
+    for ex in exercises:
+        assert ex["item"] == f"ear:qual:{ex['quality']}"
+        assert len(ex["midis"]) == 3
+
+
+def test_the_quality_drill_builds_the_triad_its_item_names(db, user_id):
+    for ex in srs.build_session(db, user_id, NODE_BY_ID["ear-chords"], "ear-chord", length=30):
+        root, third, fifth = ex["midis"]
+        assert fifth - root == 7
+        assert third - root == (4 if ex["quality"] == "maj" else 3)
+
+
+def test_ear_phrases_are_four_notes_from_the_ear_pool(db, user_id):
+    pool = {f"ear:{m}" for m in NODE_BY_ID["ear-phrases"]["midis"]}
+    for ex in srs.build_session(db, user_id, NODE_BY_ID["ear-phrases"], "ear-phrase"):
+        assert len(ex["notes"]) == srs.PHRASE_NOTES
+        assert ex["midis"] == [n["midi"] for n in ex["notes"]]
+        assert all(n["item"] in pool for n in ex["notes"])
+
+
+def test_ear_exercises_report_their_scaffold_level(db, user_id):
+    """Level drives how hard the drill is to LISTEN to, so it has to arrive.
+
+    Every item is mastered rather than one, so the assertion does not depend
+    on a weighted draw happening to include the one that was.
+    """
+    node = NODE_BY_ID["ear-pitch"]
+    assert all(ex["level"] == 0 for ex in srs.build_session(db, user_id, node, "ear-pitch"))
+
+    for midi in node["midis"]:
+        item = srs.get_or_create(db, user_id, f"ear:{midi}")
+        for _ in range(srs.HITS_PER_LEVEL):
+            srs.record_review(item, [True])
+    db.commit()
+
+    exercises = srs.build_session(db, user_id, node, "ear-pitch", length=20)
+    assert exercises
+    assert all(ex["level"] == 1 for ex in exercises)

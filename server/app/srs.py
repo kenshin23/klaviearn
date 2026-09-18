@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
-from .content import NOTES, node_items
+from .content import NOTES, chord_spec, node_items
 from .models import ItemSRS, utcnow
 
 SESSION_LENGTH = 10
@@ -112,7 +112,7 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
                 return c
         return candidates[-1]
 
-    if drill == "interval":
+    if drill in ("interval", "ear-interval"):
         # Two notes on the treble staff; name the distance. The base note is
         # random so the answer is the shape, not a memorized picture.
         scale = sorted(NOTES["treble"].keys())
@@ -128,12 +128,27 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
                 {**NOTES["treble"][scale[base + size - 1]], "clef": "treble"},
             ]
             exercises.append(
-                {"item": p["item"], "drill": "interval", "level": p["level"],
-                 "size": size, "name": p["meta"]["name"], "notes": pair}
+                {"item": p["item"], "drill": drill, "level": p["level"],
+                 "size": size, "name": p["meta"]["name"], "notes": pair,
+                 "midis": [n["midi"] for n in pair]}
             )
         return exercises
 
-    if drill == "phrase":
+    if drill == "ear-chord":
+        # A fresh root each time: the answer has to be the quality you hear,
+        # not a chord you have memorised the pitch of.
+        exercises, prev = [], None
+        for _ in range(length):
+            p = pick(prev)
+            prev = p["item"]
+            root = random.choice(node["roots"])
+            exercises.append(
+                {"item": p["item"], "drill": drill, "level": p["level"],
+                 **chord_spec(root, p["meta"]["quality"])}
+            )
+        return exercises
+
+    if drill in ("phrase", "ear-phrase"):
         # Micro sight-reading: 5 phrases of 4 notes, read left to right.
         exercises = []
         for _ in range(PHRASE_COUNT):
@@ -143,7 +158,8 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
                 prev = p["item"]
                 notes.append({"item": p["item"], "level": p["level"], **p["meta"]})
             exercises.append(
-                {"drill": "phrase", "level": min(n["level"] for n in notes), "notes": notes}
+                {"drill": drill, "level": min(n["level"] for n in notes), "notes": notes,
+                 "midis": [n["midi"] for n in notes]}
             )
         return exercises
 

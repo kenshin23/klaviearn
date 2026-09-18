@@ -319,3 +319,79 @@ def test_a_chord_with_an_accidental_survives_the_round_trip(auth_client):
     else:
         pytest.fail("20 sessions without a single accidental — the pool is wrong")
     assert all(n["acc"] == "#" and n["key"].count("#") == 1 for n in sharps)
+
+
+# --- The ear track -----------------------------------------------------------
+
+EAR_PAIRS = [
+    ("ear-pitch", "ear-pitch"),
+    ("ear-intervals", "ear-interval"),
+    ("ear-chords", "ear-chord"),
+    ("ear-phrases", "ear-phrase"),
+]
+
+
+@pytest.mark.parametrize(("node_id", "drill"), EAR_PAIRS)
+def test_every_ear_node_builds_a_session(auth_client, node_id, drill):
+    r = start(auth_client, node_id, drill)
+    assert r.status_code == 200
+    exercises = r.json()["exercises"]
+    assert exercises
+    valid = set(items_of(node_id))
+    for ex in exercises:
+        assert ex["drill"] == drill
+        if drill == "ear-phrase":
+            assert all(n["item"] in valid for n in ex["notes"])
+        else:
+            assert ex["item"] in valid
+
+
+@pytest.mark.parametrize(("node_id", "drill"), EAR_PAIRS)
+def test_ear_exercises_survive_json(auth_client, node_id, drill):
+    """The audio payload is the exercise; it has to reach the browser intact."""
+    for ex in start(auth_client, node_id, drill).json()["exercises"]:
+        midis = ex.get("midis") or [ex["midi"]]
+        assert all(isinstance(m, int) for m in midis)
+
+
+@pytest.mark.parametrize(
+    ("node_id", "drill"),
+    [("ear-pitch", "note"), ("octave", "ear-pitch"), ("ear-chords", "chord"),
+     ("chords", "ear-chord"), ("ear-intervals", "interval")],
+)
+def test_ear_drills_and_nodes_do_not_cross_wires(auth_client, node_id, drill):
+    assert start(auth_client, node_id, drill).status_code == 422
+
+
+def test_an_ear_session_records_progress(auth_client):
+    exercises = start(auth_client, "ear-pitch", "ear-pitch").json()["exercises"]
+    results = [{"item": ex["item"], "hit": True} for ex in exercises]
+    assert complete(auth_client, "ear-pitch", "ear-pitch", results).json()["xpGained"] > 0
+
+    items = auth_client.get("/api/stats").json()["items"]
+    assert items and all(i["item"].startswith("ear:") for i in items)
+
+
+def test_ear_and_reading_progress_are_scheduled_separately(auth_client, db):
+    complete(auth_client, "octave", "note", [{"item": "treble:60", "hit": True}])
+    complete(auth_client, "ear-pitch", "ear-pitch", [{"item": "ear:60", "hit": False}])
+
+    rows = {r.item_key: r for r in db.scalars(select(ItemSRS))}
+    assert rows["treble:60"].correct == 1
+    assert rows["ear:60"].correct == 0
+    assert rows["treble:60"].due_at > rows["ear:60"].due_at
+
+
+def test_practising_by_ear_counts_toward_the_phrase_drill_too(auth_client, db):
+    """They share an item, so evidence from one informs the other."""
+    complete(auth_client, "ear-pitch", "ear-pitch", [{"item": "ear:60", "hit": True}])
+    complete(auth_client, "ear-phrases", "ear-phrase", [{"item": "ear:60", "hit": True}])
+    row = db.scalar(select(ItemSRS).where(ItemSRS.item_key == "ear:60"))
+    assert row.seen == 2
+
+
+def test_the_tree_shows_the_ear_nodes(auth_client):
+    nodes = {n["id"]: n for n in auth_client.get("/api/tree").json()["nodes"]}
+    for node_id, _ in EAR_PAIRS:
+        assert node_id in nodes
+        assert nodes[node_id]["title"] and nodes[node_id]["blurb"]

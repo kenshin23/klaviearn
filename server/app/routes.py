@@ -171,6 +171,10 @@ DRILLS_BY_KIND = {
     "intervals": {"interval"},
     "grand": {"note"},
     "chords": {"chord"},
+    "ear-pitch": {"ear-pitch"},
+    "ear-intervals": {"ear-interval"},
+    "ear-chords": {"ear-chord"},
+    "ear-phrases": {"ear-phrase"},
 }
 
 

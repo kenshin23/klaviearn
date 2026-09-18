@@ -33,6 +33,14 @@ vi.mock("../components/PhraseStaff.jsx", () => ({
 }));
 vi.mock("../components/RhythmStaff.jsx", () => ({ default: () => <div data-testid="rhythm-staff" /> }));
 
+// Keep the audio module real except for the one call the ear drills are
+// judged by: whether the exercise actually got sounded.
+vi.mock("../lib/audio.js", async importOriginal => ({
+  ...(await importOriginal()),
+  playPlan: vi.fn(),
+}));
+const { playPlan } = await import("../lib/audio.js");
+
 const SETTINGS = {
   scaffold: "auto",
   strictOctave: false,
@@ -411,5 +419,210 @@ describe("typing as input", () => {
     renderSession([chordExercise()]);
     for (const key of ["c", "e", "g"]) fireEvent.keyDown(document, { key });
     expect(statusText()).toContain("correct");
+  });
+});
+
+
+// --- The ear track ----------------------------------------------------------
+
+const earPitch = (midi = 67, over = {}) => ({
+  item: `ear:${midi}`, drill: "ear-pitch", level: 0, ...noteMeta("treble", midi), ...over,
+});
+const earInterval = (over = {}) => ({
+  item: "ear:int:3", drill: "ear-interval", level: 0, size: 3, name: "3rd",
+  midis: [60, 64], notes: [noteMeta("treble", 60), noteMeta("treble", 64)], ...over,
+});
+const earChord = (root = 60, quality = "maj", over = {}) => ({
+  item: `ear:qual:${quality}`, drill: "ear-chord", level: 0,
+  ...chordSpec(root, quality), ...over,
+});
+const earPhrase = (over = {}) => ({
+  drill: "ear-phrase", level: 0,
+  notes: [60, 64, 67, 72].map(m => ({ item: `ear:${m}`, level: 0, ...noteMeta("treble", m) })),
+  midis: [60, 64, 67, 72], ...over,
+});
+
+describe("what an ear drill shows", () => {
+  it("draws no staff at all — that is the point", () => {
+    renderSession([earPitch()]);
+    for (const id of ["staff", "chord-staff", "interval-staff", "phrase-staff", "rhythm-staff"]) {
+      expect(screen.queryByTestId(id), id).not.toBeInTheDocument();
+    }
+  });
+
+  it("offers a replay button instead", () => {
+    renderSession([earPitch()]);
+    expect(screen.getByRole("button", { name: "🔊 Play it again" })).toBeInTheDocument();
+  });
+
+  it("does not offer 'hear it', which would be the answer", () => {
+    renderSession([earPitch()]);
+    expect(screen.queryByRole("button", { name: "🔊 Hear it" })).not.toBeInTheDocument();
+  });
+
+  it("still offers 'hear it' on the reading drills", () => {
+    renderSession([noteExercise(60)]);
+    expect(screen.getByRole("button", { name: "🔊 Hear it" })).toBeInTheDocument();
+  });
+
+  it("counts the sounds coming without saying what they are", () => {
+    renderSession([earPhrase()]);
+    expect(document.querySelectorAll(".ear-beat")).toHaveLength(4);
+  });
+});
+
+describe("sounding the exercise", () => {
+  it("plays it as soon as it arrives — the sound is the prompt", () => {
+    renderSession([earPitch(67)]);
+    expect(playPlan).toHaveBeenCalledTimes(1);
+    expect(playPlan.mock.calls[0][0].flatMap(s => s.midis)).toContain(67);
+  });
+
+  it("plays again on request", () => {
+    renderSession([earPitch()]);
+    playPlan.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "🔊 Play it again" }));
+    expect(playPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays the next exercise when the session advances", () => {
+    renderSession([earPitch(60), earPitch(67)]);
+    playPlan.mockClear();
+    play("C");
+    advance();
+    expect(playPlan).toHaveBeenCalledTimes(1);
+    expect(playPlan.mock.calls[0][0].flatMap(s => s.midis)).toContain(67);
+  });
+
+  it("sounds a reference note first while the item is new", () => {
+    renderSession([earPitch(67, { level: 0 })]);
+    expect(playPlan.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("drops the reference once the item is mastered", () => {
+    renderSession([earPitch(67, { level: 2 })]);
+    expect(playPlan.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it("does not sound anything on a reading drill", () => {
+    renderSession([noteExercise(60)]);
+    expect(playPlan).not.toHaveBeenCalled();
+  });
+});
+
+describe("matching a pitch by ear", () => {
+  it("asks you to play what you heard", () => {
+    renderSession([earPitch()]);
+    expect(statusText()).toContain("Play the note you just heard");
+    expect(document.querySelectorAll(".keys .key")).toHaveLength(7);
+  });
+
+  it("accepts the right note and names it", () => {
+    renderSession([earPitch(67)]);
+    play("G");
+    expect(statusText()).toContain("G");
+    expect(statusText()).toContain("correct");
+  });
+
+  it("names what you played when it is wrong", () => {
+    renderSession([earPitch(67)]);
+    play("F");
+    expect(statusText()).toContain("You played F4");
+  });
+
+  it("records the ear item, not the reading one", () => {
+    const { onFinish } = renderSession([earPitch(67)]);
+    play("G");
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([{ item: "ear:67", hit: true, played: null }]);
+  });
+});
+
+describe("intervals by ear", () => {
+  it("offers the interval buttons and no staff", () => {
+    renderSession([earInterval()]);
+    expect(statusText()).toContain("How far apart");
+    expect(screen.getByRole("button", { name: "3rd" })).toBeInTheDocument();
+    expect(screen.queryByTestId("interval-staff")).not.toBeInTheDocument();
+  });
+
+  it("grades the answer", () => {
+    renderSession([earInterval()]);
+    fireEvent.click(screen.getByRole("button", { name: "2nd" }));
+    expect(statusText()).toContain("Look at the gap");
+
+    fireEvent.click(screen.getByRole("button", { name: "3rd" }));
+    expect(statusText()).toContain("a 3rd");
+  });
+});
+
+describe("major or minor", () => {
+  it("offers exactly two answers", () => {
+    renderSession([earChord()]);
+    expect(statusText()).toContain("major or minor");
+    expect(screen.getByRole("button", { name: "☀ Major" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "☾ Minor" })).toBeInTheDocument();
+  });
+
+  it("names the chord it actually was when you get it right", () => {
+    renderSession([earChord(65, "maj")]);
+    fireEvent.click(screen.getByRole("button", { name: "☀ Major" }));
+    expect(statusText()).toContain("F major");
+  });
+
+  it("points at the third when you get it wrong", () => {
+    renderSession([earChord(60, "min")]);
+    fireEvent.click(screen.getByRole("button", { name: "☀ Major" }));
+    expect(statusText()).toContain("middle note");
+  });
+
+  it("grades a minor chord", () => {
+    renderSession([earChord(62, "min")]);
+    fireEvent.click(screen.getByRole("button", { name: "☾ Minor" }));
+    expect(statusText()).toContain("D minor");
+  });
+
+  it("records one item per quality, not per chord", () => {
+    const { onFinish } = renderSession([earChord(65, "maj")]);
+    fireEvent.click(screen.getByRole("button", { name: "☀ Major" }));
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([
+      { item: "ear:qual:maj", hit: true, played: null },
+    ]);
+  });
+});
+
+describe("playing a phrase back", () => {
+  it("walks the notes without drawing them", () => {
+    renderSession([earPhrase()]);
+    expect(statusText()).toContain("Play those four notes back");
+    expect(screen.queryByTestId("phrase-staff")).not.toBeInTheDocument();
+
+    play("C"); play("E"); play("G"); play("C");
+    expect(statusText()).toContain("Phrase complete");
+  });
+
+  it("reports a miss on the note you fumbled", () => {
+    const { onFinish } = renderSession([earPhrase()]);
+    play("C");
+    play("D");   // wrong: should be E
+    play("E");
+    play("G"); play("C");
+    advance();
+    const results = onFinish.mock.calls[0][0];
+    expect(results.find(r => r.item === "ear:64")).toMatchObject({ hit: false, played: 62 });
+    expect(results.find(r => r.item === "ear:60")).toMatchObject({ hit: true });
+  });
+});
+
+describe("the ear track in Spanish", () => {
+  it("translates the prompts and the quality buttons", () => {
+    setLocale("es", "solfege");
+    renderSession([earChord(60, "maj")], {
+      settings: { ...SETTINGS, language: "es", noteNames: "solfege" },
+    });
+    expect(statusText()).toContain("mayor o menor");
+    fireEvent.click(screen.getByRole("button", { name: "☀ Mayor" }));
+    expect(statusText()).toContain("Do mayor");
   });
 });

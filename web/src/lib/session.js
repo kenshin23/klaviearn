@@ -2,7 +2,8 @@
 // the real SRS; this is the offline approximation. Both produce the same
 // exercise shapes.
 import {
-  chordKey, chordSpec, INTERVAL_NAMES, NOTES, itemKey, noteMeta, RHYTHM_PATTERNS,
+  chordKey, chordSpec, EAR_CHORD_ROOTS, earKey, INTERVAL_NAMES, NOTES, itemKey, noteMeta, noteSpec,
+  QUALITY_NAMES, RHYTHM_PATTERNS,
 } from "./notes.js";
 
 export const SESSION_LENGTH = 10;
@@ -32,6 +33,15 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
         return node.triads.map(([root, quality]) =>
           entry(chordKey(root, quality), chordSpec(root, quality)),
         );
+      case "ear-pitch":
+      case "ear-phrases":
+        return node.midis.map(midi => entry(earKey(midi), noteSpec(midi)));
+      case "ear-intervals":
+        return node.sizes.map(size =>
+          entry(`ear:int:${size}`, { size, name: INTERVAL_NAMES[size] }));
+      case "ear-chords":
+        return node.qualities.map(quality =>
+          entry(`ear:qual:${quality}`, { quality, name: QUALITY_NAMES[quality] }));
       case "grand":
         return ["treble", "bass"].flatMap(clef =>
           Object.keys(NOTES[clef]).map(midi =>
@@ -54,7 +64,7 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
     return candidates[candidates.length - 1];
   }
 
-  if (drill === "interval") {
+  if (drill === "interval" || drill === "ear-interval") {
     const scale = Object.keys(NOTES.treble).map(Number).sort((a, b) => a - b);
     const exercises = [];
     let prev = null;
@@ -62,19 +72,38 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
       const p = pick(prev);
       prev = p.item;
       const base = Math.floor(Math.random() * (scale.length - p.meta.size + 1));
+      const notes = [
+        noteMeta("treble", scale[base]),
+        noteMeta("treble", scale[base + p.meta.size - 1]),
+      ];
       exercises.push({
         item: p.item,
-        drill: "interval",
+        drill,
         level: 0,
         size: p.meta.size,
         name: p.meta.name,
-        notes: [noteMeta("treble", scale[base]), noteMeta("treble", scale[base + p.meta.size - 1])],
+        notes,
+        midis: notes.map(n => n.midi),
       });
     }
     return exercises;
   }
 
-  if (drill === "phrase") {
+  if (drill === "ear-chord") {
+    // A fresh root each time: the answer has to be the quality you hear, not
+    // a chord you have memorised the pitch of.
+    const exercises = [];
+    let prev = null;
+    for (let i = 0; i < length; i++) {
+      const p = pick(prev);
+      prev = p.item;
+      const root = EAR_CHORD_ROOTS[Math.floor(Math.random() * EAR_CHORD_ROOTS.length)];
+      exercises.push({ item: p.item, drill, level: 0, ...chordSpec(root, p.meta.quality) });
+    }
+    return exercises;
+  }
+
+  if (drill === "phrase" || drill === "ear-phrase") {
     const exercises = [];
     for (let i = 0; i < PHRASE_COUNT; i++) {
       const notes = [];
@@ -84,7 +113,7 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
         prev = p.item;
         notes.push({ item: p.item, level: 0, ...p.meta });
       }
-      exercises.push({ drill: "phrase", level: 0, notes });
+      exercises.push({ drill, level: 0, notes, midis: notes.map(n => n.midi) });
     }
     return exercises;
   }
