@@ -3,8 +3,8 @@ import userEvent from "@testing-library/user-event";
 import PasswordForm from "./PasswordForm.jsx";
 import { setLocale } from "../lib/i18n.js";
 
-vi.mock("../lib/api.js", () => ({ api: { changePassword: vi.fn() } }));
-const { api } = await import("../lib/api.js");
+vi.mock("../lib/api.js", () => ({ api: { changePassword: vi.fn() }, setToken: vi.fn() }));
+const { api, setToken } = await import("../lib/api.js");
 
 const current = () => screen.getByLabelText(/Current password/);
 const next = () => screen.getByLabelText(/New password/);
@@ -24,6 +24,23 @@ describe("changing the password", () => {
     render(<PasswordForm />);
     await fillAndSubmit();
     expect(api.changePassword).toHaveBeenCalledWith("old passphrase", "new passphrase");
+  });
+
+  it("stores the refreshed token, so the change does not sign you out here", async () => {
+    // The server revokes every token on a password change; the reply carries
+    // a live one for the tab that made the change.
+    api.changePassword.mockResolvedValue({ ok: true, token: "fresh-token" });
+    render(<PasswordForm />);
+    await fillAndSubmit();
+    expect(setToken).toHaveBeenCalledWith("fresh-token");
+  });
+
+  it("copes with a server that sends no replacement token", async () => {
+    api.changePassword.mockResolvedValue({ ok: true });
+    render(<PasswordForm />);
+    await fillAndSubmit();
+    expect(setToken).not.toHaveBeenCalled();
+    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
   });
 
   it("confirms success and empties the fields", async () => {

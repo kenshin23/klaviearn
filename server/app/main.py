@@ -12,8 +12,12 @@ Base.metadata.create_all(engine)
 
 # Lightweight migration for pre-existing dev databases. (A real migration
 # tool like Alembic comes when the schema stops churning.)
-with engine.begin() as conn, contextlib.suppress(Exception):  # already added
-    conn.execute(text("ALTER TABLE attempts ADD COLUMN played INTEGER"))
+for _stmt in (
+    "ALTER TABLE attempts ADD COLUMN played INTEGER",
+    "ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0 NOT NULL",
+):
+    with engine.begin() as conn, contextlib.suppress(Exception):  # already added
+        conn.execute(text(_stmt))
 
 app = FastAPI(title="Klaviearn API")
 

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from . import srs
-from .auth import current_user
+from .auth import current_user, make_token, rate_limit
 from .content import NODE_BY_ID, SKILL_NODES, node_items
 from .db import get_db
 from .models import Attempt, ItemSRS, SessionRecord, utcnow
@@ -69,14 +69,19 @@ class PasswordChange(BaseModel):
     new: str = Field(min_length=8)
 
 
-@router.put("/me/password")
+# Rate-limited like the auth endpoints: it checks a password, so it is a
+# password oracle to anyone holding a token.
+@router.put("/me/password", dependencies=[Depends(rate_limit)])
 def change_password(body: PasswordChange, user=Depends(current_user), db=Depends(get_db)):
     if not bcrypt.checkpw(body.current.encode(), user.pw_hash.encode()):
         raise HTTPException(status_code=401, detail="Current password is wrong")
     user.pw_hash = bcrypt.hashpw(body.new.encode(), bcrypt.gensalt()).decode()
+    user.token_version += 1  # signs every other device out
     db.add(user)
     db.commit()
-    return {"ok": True}
+    # The caller's own token just died with the others; hand back a live one
+    # so changing your password does not log you out of the tab you did it in.
+    return {"ok": True, "token": make_token(user)}
 
 
 @router.get("/tree")

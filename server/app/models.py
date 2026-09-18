@@ -18,6 +18,10 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     pw_hash: Mapped[str] = mapped_column(String)
+    # Bumped whenever the password changes. The token carries the value it
+    # was minted with, so every token issued before a change stops verifying
+    # — the revocation a stateless JWT otherwise cannot express.
+    token_version: Mapped[int] = mapped_column(default=0)
     settings_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../lib/api.js";
+import { api, setToken } from "../lib/api.js";
 import { t } from "../lib/i18n.js";
 
 // Change-password form for logged-in users (shown under Settings).
@@ -12,7 +12,10 @@ export default function PasswordForm() {
     e.preventDefault();
     setState({ status: "busy" });
     try {
-      await api.changePassword(current, next);
+      // The change signs out every token, this tab's included; the reply
+       // carries a fresh one so the session survives.
+      const { token } = await api.changePassword(current, next);
+      if (token) setToken(token);
       setCurrent("");
       setNext("");
       setState({ status: "done" });

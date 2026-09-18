@@ -54,8 +54,12 @@ class TokenOut(BaseModel):
     email: str
 
 
-def make_token(user_id: int) -> str:
-    payload = {"sub": str(user_id), "exp": utcnow() + timedelta(days=TOKEN_DAYS)}
+def make_token(user: User) -> str:
+    payload = {
+        "sub": str(user.id),
+        "ver": user.token_version,
+        "exp": utcnow() + timedelta(days=TOKEN_DAYS),
+    }
     return jwt.encode(payload, SECRET, algorithm=ALGO)
 
 
@@ -65,6 +69,10 @@ def current_user(
     try:
         payload = jwt.decode(creds.credentials, SECRET, algorithms=[ALGO])
         user = db.get(User, int(payload["sub"]))
+        # Tokens minted before the last password change no longer verify.
+        # Absent claim == 0, so tokens issued before this existed still work.
+        if user is not None and payload.get("ver", 0) != user.token_version:
+            user = None
     except (jwt.PyJWTError, KeyError, ValueError):
         user = None
     if user is None:
@@ -87,7 +95,7 @@ def register(body: Credentials, db=Depends(get_db)):
     )
     db.add(user)
     db.commit()
-    return TokenOut(token=make_token(user.id), email=user.email)
+    return TokenOut(token=make_token(user), email=user.email)
 
 
 @router.post("/login", response_model=TokenOut, dependencies=[Depends(rate_limit)])
@@ -95,4 +103,4 @@ def login(body: Credentials, db=Depends(get_db)):
     user = db.scalar(select(User).where(User.email == body.email.strip().lower()))
     if not user or not bcrypt.checkpw(body.password.encode(), user.pw_hash.encode()):
         raise HTTPException(status_code=401, detail="Wrong email or password")
-    return TokenOut(token=make_token(user.id), email=user.email)
+    return TokenOut(token=make_token(user), email=user.email)

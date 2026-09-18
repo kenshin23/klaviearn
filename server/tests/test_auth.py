@@ -167,3 +167,31 @@ def test_change_password_enforces_a_minimum_length(auth_client):
 def test_change_password_needs_authentication(client):
     r = client.put("/api/me/password", json={"current": PASSWORD, "new": NEW_PASSWORD})
     assert r.status_code in (401, 403)
+
+
+# --- Session invalidation (security review) ----------------------------------
+
+def test_changing_the_password_invalidates_tokens_issued_before_it(client, token):
+    """A stolen token must not outlive the password change made to revoke it."""
+    client.headers["Authorization"] = f"Bearer {token}"
+    assert client.put(
+        "/api/me/password", json={"current": PASSWORD, "new": NEW_PASSWORD}
+    ).status_code == 200
+
+    # Same token, after the change.
+    assert client.get("/api/me").status_code == 401
+
+
+def test_an_admin_reset_also_invalidates_existing_tokens(client, db, token):
+    from app.manage import reset_password
+
+    reset_password(db, EMAIL, "a fresh temporary password")
+    r = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+def test_the_password_endpoint_is_rate_limited(auth_client):
+    for _ in range(auth.RATE_LIMIT):
+        auth_client.put("/api/me/password", json={"current": "wrong", "new": NEW_PASSWORD})
+    r = auth_client.put("/api/me/password", json={"current": "wrong", "new": NEW_PASSWORD})
+    assert r.status_code == 429
