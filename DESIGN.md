@@ -375,10 +375,30 @@ at your own pace is the on-ramp to reading it in time, and taking the ramp
 away to add the destination would have been a worse trade than offering
 both.
 
-**Phase 8 — Repertoire.** The `Piece` model, MusicXML import, section looping,
-tempo ramp, per-bar SRS. The point the app has been building toward: you
-practise an actual piece of music, and the app knows which bar you keep
-fumbling.
+**Phase 8 — Repertoire.** *Built.* Pieces are authored data rather than
+generated — bars, two hands, fingering, a target tempo — in
+`server/app/pieces.py` and mirrored in `web/src/lib/pieces.js`. Every bar is
+its own SRS item (`piece:ode-to-joy:b4`), and two of the phase's four parts
+then came for free from engine work already done:
+
+- **Section looping** is not a feature. Once the bar is the item, the
+  weighting `build_session` has always applied brings the bar you keep
+  fumbling back on its own.
+- **The tempo ramp** is the scaffold ladder again, spent on speed. A bar you
+  have never played arrives at 60% of the piece's tempo; a mastered one
+  arrives at it. Same shape as the colours and the ear track.
+
+Hands separate and hands together — the piece deferred from phase 7 — are
+three drills on a piece node rather than something derived, because a learner
+really does want to say "left hand today". Hands together needed no change to
+the evaluator: a bar played with both hands is two expected events on the same
+beat, and phase 7's pitch-preference matching already resolves them.
+
+MusicXML import is `server/tools/import_musicxml.py`, a build-time CLI rather
+than a runtime path. Repertoire is imported once, checked by a human, and
+pasted into `pieces.py`; the served app never parses XML. It refuses what it
+cannot represent — chords, ties, tuplets, a third staff — because a piece that
+imports *wrong* is worse than one that does not import.
 
 ## 9. Open questions
 

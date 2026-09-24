@@ -97,13 +97,33 @@ describe("curriculum text", () => {
     expect(nodeText(node).title).toBe(node.title);
   });
 
-  it("translates every node into Spanish", () => {
+  it("translates every generated node into Spanish", () => {
     setLocale("es", "solfege");
     for (const node of SKILL_NODES) {
       const text = nodeText(node);
-      expect(text.title, node.id).not.toBe(node.title);
       expect(text.blurb, node.id).toBeTruthy();
+      if (node.kind === "piece") continue; // see below
+      expect(text.title, node.id).not.toBe(node.title);
     }
+  });
+
+  it("falls back to a piece's own title when there is no translation", () => {
+    // A work's title is not ours to invent, and imported repertoire arrives
+    // untranslated — so a piece node may keep its original name rather than
+    // blocking the import on someone writing Spanish for it.
+    setLocale("es", "solfege");
+    const shipped = SKILL_NODES.filter(n => n.kind === "piece");
+    expect(shipped.length).toBeGreaterThan(0);
+    for (const node of shipped) expect(nodeText(node).title).toBeTruthy();
+
+    const imported = { id: "piece-nobody-translated", kind: "piece", title: "Gymnopédie No. 1" };
+    expect(nodeText(imported).title).toBe("Gymnopédie No. 1");
+  });
+
+  it("does translate the pieces that ship with the app", () => {
+    setLocale("es", "solfege");
+    const ode = SKILL_NODES.find(n => n.id === "piece-ode-to-joy");
+    expect(nodeText(ode).title).toBe("Himno a la Alegría");
   });
 
   it("translates the chords node", () => {

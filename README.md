@@ -35,11 +35,11 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phases 1–7 built.** A FastAPI backend in [`server/`](server/) with
+**Phases 1–8 built.** A FastAPI backend in [`server/`](server/) with
 accounts, spaced repetition (SM-2 variant), per-item scaffold fading, XP and
 day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
 works logged-in (server is the source of truth) or as an offline guest
-(localStorage). Nineteen skill nodes across twelve drills.
+(localStorage). Twenty-one skill nodes across fifteen drills.
 
 **Reading and rhythm:** notes on the treble, bass and grand staff;
 line-or-space discrimination; 4-note phrases; intervals as shapes; metronome
@@ -55,6 +55,13 @@ fingering printed above the notes until you no longer need it. Phrases can
 be read in time too. These are scored on pitch *and* timing by a shared
 evaluator, which reports per note whether you were on the beat, early, late,
 or on the wrong note entirely.
+
+**Repertoire:** real pieces, a bar at a time, right hand or left hand or
+both. Every bar is its own spaced-repetition item, so the bar you keep
+fumbling comes back on its own, and it comes back slowly — a new bar arrives
+well under tempo and speeds up as you get it. Pieces are authored data;
+[`server/tools/import_musicxml.py`](server/tools/import_musicxml.py) converts
+MusicXML into that shape at build time.
 
 A stats dashboard shows your confusion matrix ("seeing C, you played D ×3")
 and per-item accuracy.
@@ -101,6 +108,17 @@ Two of them are worth knowing about:
   output, so it is caught by comparing D major against D minor: same three
   staff positions, one extra glyph. `src/test/staff.js` holds the helpers.
 
+Importing repertoire:
+
+```bash
+cd server
+.venv/bin/python -m tools.import_musicxml score.musicxml --id minuet-g --tempo 100
+```
+
+It prints the piece as JSON for pasting into `app/pieces.py`, warning about
+bars that do not add up or notes with no fingering. It refuses chords, ties,
+tuplets and anything past two staves rather than guessing.
+
 Linting: **ruff** for Python, **ESLint** for JavaScript. Ruff runs as a linter
 only — the curriculum tables in `content.py` are column-aligned deliberately
 and a formatter would reflow them. ESLint treats the React Compiler rules that
@@ -139,6 +157,7 @@ python3 -m http.server 8000 --directory phase0
 6. ~~**Phase 5** — polyphonic input, accidentals, triad drill~~ ✅
 7. ~~**Phase 6** — the ear track: pitch, interval, chord quality, phrase playback~~ ✅
 8. ~~**Phase 7** — timed evaluator, technique track, fingering scaffold~~ ✅
-   (hands *together* deferred to phase 8)
-9. **Next** — repertoire: the `Piece` model, MusicXML import, section looping,
-   per-bar spaced repetition. See [DESIGN.md](DESIGN.md#8-roadmap).
+9. ~~**Phase 8** — repertoire: pieces, per-bar SRS, tempo ramp, hands together,
+   MusicXML import~~ ✅
+10. **Next** — more repertoire through the importer, and grouping the
+    twenty-one nodes by track before the list gets unwieldy.

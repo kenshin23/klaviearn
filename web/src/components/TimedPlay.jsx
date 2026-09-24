@@ -4,7 +4,7 @@ import { midiToFreq } from "../lib/notes.js";
 import { score } from "../lib/evaluator.js";
 import { noteName, t } from "../lib/i18n.js";
 
-export const BPM = 80; // slow practice tempo — the point is evenness, not speed
+export const BPM = 80; // default practice tempo — evenness before speed
 const COUNT_IN = 4;
 const TAIL_MS = 350; // grace after the last beat before scoring
 
@@ -26,6 +26,7 @@ export default function TimedPlay({
   label,
   onAttempt,
   registerInput,
+  bpm = BPM,
   strictOctave = false,
   tolerance,
   tapPad = false,
@@ -36,7 +37,7 @@ export default function TimedPlay({
   const take = useRef(null);
   const timers = useRef([]);
 
-  const spb = 60 / BPM;
+  const spb = 60 / bpm;
   const lastBeat = expected.length ? expected[expected.length - 1].at : 0;
   const totalBeats = Math.ceil(lastBeat + 1);
 
@@ -116,7 +117,7 @@ export default function TimedPlay({
   return (
     <div className="rhythm-play">
       <p className="rhythm-meta">
-        {label} · {BPM} {t("bpm")}
+        {label} · {bpm} {t("bpm")}
         {phase === "counting" && <strong className="count"> — {beat + 1}</strong>}
         {phase === "playing" && <strong className="count go"> — {t("GO")}</strong>}
       </p>

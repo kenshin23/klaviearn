@@ -22,6 +22,7 @@ from app.content import (
     node_items,
     note_spec,
 )
+from app.pieces import PIECES, TEMPO_STEPS
 
 WEB = pathlib.Path(__file__).resolve().parents[2] / "web"
 NOTES_JS = WEB / "src" / "lib" / "notes.js"
@@ -34,7 +35,7 @@ import(({json.dumps(str(NOTES_JS))})).then(m => {{
   const nodes = m.SKILL_NODES.map(n => ({{
     id: n.id, kind: n.kind ?? "notes", title: n.title, blurb: n.blurb,
     clef: n.clef ?? null, midis: n.midis ?? null, patterns: n.patterns ?? null,
-    sizes: n.sizes ?? null, triads: n.triads ?? null,
+    sizes: n.sizes ?? null, triads: n.triads ?? null, piece: n.piece ?? null,
     itemKeys: m.nodeItemKeys(n),
   }}));
   const probes = {json.dumps(SPELLING_PROBES)};
@@ -43,6 +44,8 @@ import(({json.dumps(str(NOTES_JS))})).then(m => {{
     notes: m.NOTES,
     rhythms: m.RHYTHM_PATTERNS,
     spellings: Object.fromEntries(probes.map(x => [x, m.noteSpec(x)])),
+    pieces: m.PIECES,
+    tempoSteps: m.TEMPO_STEPS,
     chords: Object.fromEntries(
       (m.SKILL_NODES.find(n => n.id === "chords")?.triads ?? []).map(
         ([root, q]) => [m.chordKey(root, q), m.chordSpec(root, q)]
@@ -120,7 +123,7 @@ def test_node_titles_and_blurbs_match(js):
 def test_node_contents_match(js):
     for node in js["nodes"]:
         py = py_nodes()[node["id"]]
-        for field in ("clef", "midis", "patterns", "sizes"):
+        for field in ("clef", "midis", "patterns", "sizes", "piece"):
             if node[field] is not None or field in py:
                 assert node[field] == py.get(field), f"{node['id']}.{field}"
         if node["triads"] is not None:
@@ -163,3 +166,33 @@ def test_chord_specs_match(js):
     assert set(js["chords"]) == {chord_key(root, q) for root, q in triads}
     for root, quality in triads:
         assert js["chords"][chord_key(root, quality)] == chord_spec(root, quality)
+
+
+# --- Repertoire --------------------------------------------------------------
+# Every note of every piece is transcribed by hand on both sides. This is the
+# most drift-prone data in the app, and a divergence means a guest and an
+# account holder practise different music under the same title.
+
+def test_the_same_pieces(js):
+    assert set(js["pieces"]) == set(PIECES)
+
+
+def test_piece_headers_match(js):
+    for piece_id, piece in PIECES.items():
+        for field in ("title", "composer", "key", "beatsPerBar", "tempo"):
+            assert js["pieces"][piece_id][field] == piece[field], f"{piece_id}.{field}"
+
+
+def test_every_bar_of_every_piece_matches(js):
+    for piece_id, piece in PIECES.items():
+        js_bars = js["pieces"][piece_id]["bars"]
+        assert len(js_bars) == len(piece["bars"]), piece_id
+        for number, (js_bar, py_bar) in enumerate(zip(js_bars, piece["bars"], strict=True), 1):
+            for hand in ("rh", "lh"):
+                assert js_bar[hand] == py_bar[hand], f"{piece_id} bar {number} {hand}"
+
+
+def test_the_tempo_ladder_matches(js):
+    """Both sides decide how fast a bar is asked for; a drift would mean the
+    same bar comes at two different tempos depending on whether you signed in."""
+    assert js["tempoSteps"] == list(TEMPO_STEPS)

@@ -5,11 +5,26 @@ import {
   chordKey, chordSpec, EAR_CHORD_ROOTS, earKey, INTERVAL_NAMES, NOTES, itemKey, noteMeta, noteSpec,
   QUALITY_NAMES, RHYTHM_PATTERNS, techniqueSpec,
 } from "./notes.js";
+import { PIECES, barTempo, pieceItems } from "./pieces.js";
 
 export const SESSION_LENGTH = 10;
 export const PHRASE_COUNT = 5;
 export const PHRASE_NOTES = 4;
 export const TECHNIQUE_LENGTH = 4; // a scale is 15 notes; ten takes would be a chore
+export const PIECE_LENGTH = 8;     // bars per session — enough that a weak one recurs
+
+// What a drill asks for when the caller does not say. The branches below all
+// honour `length`; they used to hardcode these, so an explicit length did
+// nothing.
+const DRILL_LENGTHS = {
+  phrase: PHRASE_COUNT,
+  "phrase-timed": PHRASE_COUNT,
+  "ear-phrase": PHRASE_COUNT,
+  technique: TECHNIQUE_LENGTH,
+  "piece-rh": PIECE_LENGTH,
+  "piece-lh": PIECE_LENGTH,
+  "piece-both": PIECE_LENGTH,
+};
 
 function weightFor(stats) {
   if (!stats || stats.seen === 0) return 2.5;
@@ -17,7 +32,8 @@ function weightFor(stats) {
   return Math.max(0.2, 1 + missRate * 3 - Math.min(stats.streak, 5) * 0.15);
 }
 
-export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
+export function buildSession(node, drill, noteStats, length) {
+  length = length ?? DRILL_LENGTHS[drill] ?? SESSION_LENGTH;
   const entry = (item, meta) => ({ item, meta, weight: weightFor(noteStats[item]) });
   const pool = (() => {
     switch (node.kind) {
@@ -34,6 +50,8 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
         return node.triads.map(([root, quality]) =>
           entry(chordKey(root, quality), chordSpec(root, quality)),
         );
+      case "piece":
+        return pieceItems(node.piece).map(([key, meta]) => entry(key, meta));
       case "technique":
         return node.patterns.map(p => entry(`tech:${p}`, techniqueSpec(p)));
       case "ear-pitch":
@@ -92,10 +110,27 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
     return exercises;
   }
 
+  if (drill.startsWith("piece-")) {
+    // Bars are the items, so the SRS weighting IS the section looping: the
+    // bar you keep fumbling comes back on its own.
+    const exercises = [];
+    let prev = null;
+    for (let i = 0; i < length; i++) {
+      const p = pick(prev);
+      prev = p.item;
+      exercises.push({
+        item: p.item, drill, level: 0,
+        bpm: barTempo(PIECES[p.meta.piece], 0),
+        ...p.meta,
+      });
+    }
+    return exercises;
+  }
+
   if (drill === "technique") {
     const exercises = [];
     let prev = null;
-    for (let i = 0; i < TECHNIQUE_LENGTH; i++) {
+    for (let i = 0; i < length; i++) {
       const p = pick(prev);
       prev = p.item;
       exercises.push({ item: p.item, drill, level: 0, ...p.meta });
@@ -119,7 +154,7 @@ export function buildSession(node, drill, noteStats, length = SESSION_LENGTH) {
 
   if (drill === "phrase" || drill === "ear-phrase" || drill === "phrase-timed") {
     const exercises = [];
-    for (let i = 0; i < PHRASE_COUNT; i++) {
+    for (let i = 0; i < length; i++) {
       const notes = [];
       let prev = null;
       for (let j = 0; j < PHRASE_NOTES; j++) {

@@ -1,3 +1,5 @@
+import { PIECES as PIECES_DATA, barKey as barKeyOf } from "./pieces.js";
+
 // Note metadata and the skill tree, mirroring server/app/content.py.
 // (Guest mode needs them locally; logged in, the server's tree wins.)
 //
@@ -101,6 +103,11 @@ export const EAR_MIDIS = [60, 62, 64, 65, 67, 69, 71, 72];
 export const EAR_CHORD_ROOTS = [60, 62, 64, 65, 67, 69];
 
 export const earKey = midi => `ear:${midi}`;
+
+// --- Repertoire -------------------------------------------------------------
+// Pieces live in their own module; re-exported so the curriculum reads from
+// one place.
+export { PIECES, TEMPO_STEPS, barKey, barTempo, expectBar, pieceItems } from "./pieces.js";
 
 // --- Technique --------------------------------------------------------------
 // One beat per note at a slow tempo: these drills are about evenness and the
@@ -225,6 +232,14 @@ export const SKILL_NODES = [
     title: "The grand staff",
     blurb: "Both staves together — middle C is the bridge between your hands.",
   },
+  ...Object.entries(PIECES_DATA).map(([pieceId, piece]) => ({
+    id: `piece-${pieceId}`,
+    kind: "piece",
+    piece: pieceId,
+    title: piece.title,
+    blurb: `${piece.composer} — ${piece.bars.length} bars. `
+      + "Practise a bar at a time; the ones you fumble come back.",
+  })),
   {
     id: "technique-5finger",
     kind: "technique",
@@ -308,6 +323,8 @@ export const nodeItemKeys = node => {
       return node.triads.map(([root, quality]) => chordKey(root, quality));
     // Shared keys: the pitch drill and the phrase drill train the same
     // "which note is that?" recall, so they feed one SRS item per note.
+    case "piece":
+      return PIECES_DATA[node.piece].bars.map((_, i) => barKeyOf(node.piece, i + 1));
     case "technique":
       return node.patterns.map(p => `tech:${p}`);
     case "ear-pitch":

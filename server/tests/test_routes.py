@@ -459,3 +459,59 @@ def test_a_timed_phrase_session_credits_the_notes_it_names(auth_client, db):
     assert complete(auth_client, "octave", "phrase-timed", results).json()["xpGained"] > 0
     rows = db.scalars(select(ItemSRS)).all()
     assert rows and all(r.item_key.startswith("treble:") for r in rows)
+
+
+# --- Repertoire --------------------------------------------------------------
+
+PIECE_DRILLS = ["piece-rh", "piece-lh", "piece-both"]
+
+
+@pytest.mark.parametrize("drill", PIECE_DRILLS)
+@pytest.mark.parametrize("node_id", ["piece-ode-to-joy", "piece-mary-lamb"])
+def test_every_piece_and_hand_builds_a_session(auth_client, node_id, drill):
+    r = start(auth_client, node_id, drill)
+    assert r.status_code == 200
+    valid = set(items_of(node_id))
+    for ex in r.json()["exercises"]:
+        assert ex["item"] in valid
+        assert ex["drill"] == drill
+        assert ex["bar"] >= 1
+        assert ex["bpm"] <= ex["tempo"]
+
+
+@pytest.mark.parametrize(
+    ("node_id", "drill"),
+    [("piece-ode-to-joy", "note"), ("octave", "piece-rh"), ("technique-scales", "piece-both")],
+)
+def test_piece_drills_and_nodes_do_not_cross_wires(auth_client, node_id, drill):
+    assert start(auth_client, node_id, drill).status_code == 422
+
+
+def test_a_piece_session_records_progress_per_bar(auth_client, db):
+    exercises = start(auth_client, "piece-ode-to-joy", "piece-both").json()["exercises"]
+    results = [{"item": ex["item"], "hit": True} for ex in exercises]
+    assert complete(auth_client, "piece-ode-to-joy", "piece-both", results).json()["xpGained"] > 0
+
+    rows = db.scalars(select(ItemSRS)).all()
+    assert rows and all(r.item_key.startswith("piece:ode-to-joy:b") for r in rows)
+
+
+def test_bars_of_one_piece_cannot_be_reported_against_another(auth_client):
+    results = [{"item": "piece:mary-lamb:b1", "hit": True}]
+    assert complete(auth_client, "piece-ode-to-joy", "piece-rh", results).status_code == 422
+
+
+def test_the_tree_shows_the_pieces(auth_client):
+    nodes = {n["id"]: n for n in auth_client.get("/api/tree").json()["nodes"]}
+    for node_id in ("piece-ode-to-joy", "piece-mary-lamb"):
+        assert node_id in nodes
+        assert nodes[node_id]["title"] and nodes[node_id]["blurb"]
+
+
+def test_a_bar_carries_both_hands_whichever_drill_asked(auth_client):
+    """The renderer draws the grand staff either way; the drill decides what
+    is scored, not what is shown."""
+    for drill in PIECE_DRILLS:
+        for ex in start(auth_client, "piece-ode-to-joy", drill).json()["exercises"]:
+            assert ex["rh"] and ex["lh"]
+            assert all("finger" in n for n in ex["rh"] + ex["lh"])

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import Session from "./Session.jsx";
 import { chordSpec, noteMeta, techniqueSpec } from "../lib/notes.js";
+import { pieceItems } from "../lib/pieces.js";
 import { setLocale } from "../lib/i18n.js";
 
 // The staff components are thin wrappers over VexFlow's SVG renderer. This
@@ -32,6 +33,17 @@ vi.mock("../components/PhraseStaff.jsx", () => ({
   default: ({ currentIdx }) => <div data-testid="phrase-staff" data-current={currentIdx} />,
 }));
 vi.mock("../components/RhythmStaff.jsx", () => ({ default: () => <div data-testid="rhythm-staff" /> }));
+vi.mock("../components/PassageStaff.jsx", () => ({
+  default: ({ exercise, hands, showFingers }) => (
+    <div
+      data-testid="passage-staff"
+      data-bar={exercise.bar}
+      data-title={exercise.title}
+      data-hands={hands.join("+")}
+      data-show-fingers={String(showFingers)}
+    />
+  ),
+}));
 vi.mock("../components/TechniqueStaff.jsx", () => ({
   default: ({ exercise, showFingers, showColor }) => (
     <div
@@ -774,5 +786,86 @@ describe("the verdicts stay on screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "▶ Count-in & play" }));
     act(() => { vi.advanceTimersByTime(START_DELAY + COUNT_IN * SPB + SPB * 5 + 500); });
     expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
+  });
+});
+
+
+// --- Repertoire -------------------------------------------------------------
+
+const bar = (drill, pieceId = "ode-to-joy", n = 1, over = {}) => {
+  const [item, meta] = pieceItems(pieceId)[n - 1];
+  return { item, drill, level: 0, bpm: 60, ...meta, ...over };
+};
+
+/** Run a piece take at the bar's own tempo. */
+function takeBar(midis, bpm = 60) {
+  const spb = (60 / bpm) * 1000;
+  fireEvent.click(screen.getByRole("button", { name: "▶ Count-in & play" }));
+  act(() => { vi.advanceTimersByTime(250 + 4 * spb); });
+  for (let i = 0; i < midis.length; i++) {
+    if (i > 0) act(() => { vi.advanceTimersByTime(spb); });
+    fireEvent.keyDown(document, { key: NAMES[midis[i] % 12] });
+  }
+  act(() => { vi.advanceTimersByTime(spb * (midis.length + 2) + 600); });
+}
+
+describe("practising a piece", () => {
+  it("draws the bar on the grand staff, naming where you are", () => {
+    renderSession([bar("piece-rh", "ode-to-joy", 4)]);
+    const staff = screen.getByTestId("passage-staff");
+    expect(staff).toHaveAttribute("data-bar", "4");
+    expect(staff).toHaveAttribute("data-title", "Ode to Joy");
+    expect(statusText()).toContain("right hand");
+  });
+
+  it.each([
+    ["piece-rh", "rh"],
+    ["piece-lh", "lh"],
+    ["piece-both", "rh+lh"],
+  ])("marks %s as playing %s", (drill, hands) => {
+    renderSession([bar(drill)]);
+    expect(screen.getByTestId("passage-staff")).toHaveAttribute("data-hands", hands);
+  });
+
+  it.each([[0, "true"], [1, "true"], [2, "false"]])(
+    "shows the fingering at level %i: %s", (level, shown) => {
+      renderSession([bar("piece-rh", "ode-to-joy", 1, { level })]);
+      expect(screen.getByTestId("passage-staff")).toHaveAttribute("data-show-fingers", shown);
+    });
+
+  it("counts you in at the tempo the bar asks for", () => {
+    renderSession([bar("piece-rh", "ode-to-joy", 1, { bpm: 58 })]);
+    expect(document.querySelector(".rhythm-meta").textContent).toContain("58 bpm");
+    expect(document.querySelector(".rhythm-meta").textContent).toContain("bar 1/8");
+  });
+
+  it("passes a right-hand bar played correctly", () => {
+    const { onFinish } = renderSession([bar("piece-rh", "ode-to-joy", 1)]);
+    takeBar([64, 64, 65, 67]); // E E F G
+    expect(statusText()).toContain("Locked in");
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([
+      { item: "piece:ode-to-joy:b1", hit: true, played: null },
+    ]);
+  });
+
+  it("asks only for the left hand on the left-hand drill", () => {
+    renderSession([bar("piece-lh", "ode-to-joy", 1)]);
+    takeBar([60]); // the single bass note, as a pitch class
+    expect(statusText()).toContain("Locked in");
+  });
+
+  it("asks for both hands together on the hands-together drill", () => {
+    renderSession([bar("piece-both", "ode-to-joy", 1)]);
+    takeBar([64, 64, 65, 67]); // right hand only — the bass note is missing
+    expect(statusText()).toContain("Not quite");
+    expect(document.querySelectorAll(".verdict.missed").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the verdicts up so you can see which beat fell over", () => {
+    renderSession([bar("piece-rh", "ode-to-joy", 1)]);
+    takeBar([64, 62, 65, 67]); // D instead of E on beat 2
+    expect(document.querySelectorAll(".verdict").length).toBe(4);
+    expect(document.querySelector(".verdict.wrong")).toBeInTheDocument();
   });
 });

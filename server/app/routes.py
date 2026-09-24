@@ -176,6 +176,7 @@ DRILLS_BY_KIND = {
     "ear-chords": {"ear-chord"},
     "ear-phrases": {"ear-phrase"},
     "technique": {"technique"},
+    "piece": {"piece-rh", "piece-lh", "piece-both"},
 }
 
 

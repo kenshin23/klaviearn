@@ -12,11 +12,26 @@ from sqlalchemy import select
 
 from .content import NOTES, chord_spec, node_items
 from .models import ItemSRS, utcnow
+from .pieces import bar_tempo
 
 SESSION_LENGTH = 10
 PHRASE_COUNT = 5
 PHRASE_NOTES = 4
 TECHNIQUE_LENGTH = 4  # a scale is 15 notes; ten takes of one would be a chore
+PIECE_LENGTH = 8      # bars per session — enough that a weak one recurs
+
+# How many exercises a drill asks for when the caller does not say. The
+# branches below all honour `length`; they used to hardcode these, which made
+# an explicit length silently do nothing.
+DRILL_LENGTHS = {
+    "phrase": PHRASE_COUNT,
+    "phrase-timed": PHRASE_COUNT,
+    "ear-phrase": PHRASE_COUNT,
+    "technique": TECHNIQUE_LENGTH,
+    "piece-rh": PIECE_LENGTH,
+    "piece-lh": PIECE_LENGTH,
+    "piece-both": PIECE_LENGTH,
+}
 HITS_PER_LEVEL = 4
 MAX_LEVEL = 2  # 0 letters+colors, 1 colors only, 2 plain notation
 
@@ -81,8 +96,10 @@ def _weight(srs: ItemSRS | None, now) -> float:
     return max(0.2, w)
 
 
-def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSION_LENGTH):
+def build_session(db, user_id: int, node: dict, drill: str, length: int | None = None):
     now = utcnow()
+    if length is None:
+        length = DRILL_LENGTHS.get(drill, SESSION_LENGTH)
     items = node_items(node)
     states = {
         s.item_key: s
@@ -135,9 +152,28 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
             )
         return exercises
 
+    if drill.startswith("piece-"):
+        # Bars are the items, so the weighting the SRS already does IS the
+        # section looping: the bar you keep fumbling comes back on its own.
+        # Tempo comes from the bar's own level — slow while it is new.
+        from .pieces import PIECES
+
+        exercises, prev = [], None
+        for _ in range(length):
+            p = pick(prev)
+            prev = p["item"]
+            exercises.append(
+                {
+                    "item": p["item"], "drill": drill, "level": p["level"],
+                    "bpm": bar_tempo(PIECES[p["meta"]["piece"]], p["level"]),
+                    **p["meta"],
+                }
+            )
+        return exercises
+
     if drill == "technique":
         exercises, prev = [], None
-        for _ in range(TECHNIQUE_LENGTH):
+        for _ in range(length):
             p = pick(prev)
             prev = p["item"]
             exercises.append(
@@ -162,7 +198,7 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int = SESSIO
     if drill in ("phrase", "ear-phrase", "phrase-timed"):
         # Micro sight-reading: 5 phrases of 4 notes, read left to right.
         exercises = []
-        for _ in range(PHRASE_COUNT):
+        for _ in range(length):
             notes, prev = [], None
             for _ in range(PHRASE_NOTES):
                 p = pick(prev)

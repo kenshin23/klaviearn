@@ -8,11 +8,13 @@ import EarPrompt from "../components/EarPrompt.jsx";
 import RhythmStaff from "../components/RhythmStaff.jsx";
 import TimedPlay from "../components/TimedPlay.jsx";
 import TechniqueStaff from "../components/TechniqueStaff.jsx";
+import PassageStaff from "../components/PassageStaff.jsx";
 import Keys from "../components/Keys.jsx";
 import { chordLabel, noteLabel, noteName, posLabel, rhythmName, techniqueName, t } from "../lib/i18n.js";
 import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi, playPlan } from "../lib/audio.js";
 import { playbackPlan, planBeats } from "../lib/ear.js";
 import { expectNotes, expectTaps } from "../lib/evaluator.js";
+import { HANDS, expectBar } from "../lib/pieces.js";
 import { startMicListener } from "../lib/pitch.js";
 import { startMidiListener } from "../lib/midi.js";
 
@@ -31,6 +33,7 @@ function scaffoldLevel(settings, exercise) {
 const scaffoldFlags = level => ({ letters: level === 0, colors: level <= 1, fingers: level <= 1 });
 
 const isEarDrill = exercise => Boolean(exercise?.drill?.startsWith("ear-"));
+const isPieceDrill = exercise => Boolean(exercise?.drill?.startsWith("piece-"));
 
 // The exercise state machine: listen → feedback → (next | done).
 // `results` is one entry per SRS item (a phrase contributes several);
@@ -157,7 +160,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       return;
     }
 
-    if (exercise.drill === "technique" || exercise.drill === "phrase-timed") {
+    if (exercise.drill === "technique" || exercise.drill === "phrase-timed"
+        || isPieceDrill(exercise)) {
       tapRef.current?.(midi); // the take scores pitch as well as timing
       return;
     }
@@ -295,6 +299,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     if (exercise.drill === "technique" || exercise.drill === "phrase-timed") {
       return expectNotes(exercise.midis);
     }
+    if (isPieceDrill(exercise)) return expectBar(exercise, exercise.drill);
     return null;
   }, [exercise]);
 
@@ -426,6 +431,12 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           <EarPrompt beats={planBeats(earPlan)} onReplay={replay} />
         ) : exercise.drill === "phrase" || exercise.drill === "phrase-timed" ? (
           <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
+        ) : isPieceDrill(exercise) ? (
+          <PassageStaff
+            exercise={exercise}
+            hands={HANDS[exercise.drill]}
+            showFingers={scaffold.fingers}
+          />
         ) : exercise.drill === "technique" ? (
           <TechniqueStaff
             exercise={exercise}
@@ -472,6 +483,9 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             "ear-phrase": "Play those four notes back.",
             technique: "Play it evenly, with the fingering shown.",
             "phrase-timed": "Play the phrase in time with the metronome.",
+            "piece-rh": "Play this bar with your right hand.",
+            "piece-lh": "Play this bar with your left hand.",
+            "piece-both": "Play this bar with both hands.",
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -572,6 +586,20 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           registerInput={fn => { tapRef.current = fn; }}
           tapPad
         />
+      )}
+
+      {isPieceDrill(exercise) && (
+        <>
+          <TimedPlay
+            expected={timedExpected}
+            label={`${exercise.title} — ${t("bar")} ${exercise.bar}/${exercise.bars}`}
+            bpm={exercise.bpm}
+            onAttempt={timedAttempt}
+            registerInput={fn => { tapRef.current = fn; }}
+            strictOctave={settings.strictOctave}
+          />
+          <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} accidentals={false} />
+        </>
       )}
 
       {exercise.drill === "phrase-timed" && (

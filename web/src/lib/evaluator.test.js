@@ -196,3 +196,63 @@ describe("the shipped rhythm patterns", () => {
     }
   });
 });
+
+describe("hands together", () => {
+  // A bar played with both hands is two expected events at the same beat, one
+  // per hand, each matching its own played note. Phase 7's pitch-preference
+  // matching is what makes that work without special-casing.
+  const bar = [
+    { at: 0, midis: [48] }, { at: 0, midis: [64] }, // LH C3 + RH E4
+    { at: 1, midis: [64] },
+    { at: 2, midis: [65] },
+    { at: 3, midis: [67] },
+  ];
+
+  it("passes when both hands land together", () => {
+    const played = [
+      { at: 0, midi: 48 }, { at: 0, midi: 64 },
+      { at: 1, midi: 64 }, { at: 2, midi: 65 }, { at: 3, midi: 67 },
+    ];
+    const result = score(bar, played, { strictOctave: true });
+    expect(result.hit).toBe(true);
+    expect(verdicts(result)).toEqual(["ok", "ok", "ok", "ok", "ok"]);
+  });
+
+  it("does not let one note satisfy both hands", () => {
+    const played = [{ at: 0, midi: 48 }, { at: 1, midi: 64 }, { at: 2, midi: 65 }, { at: 3, midi: 67 }];
+    const result = score(bar, played, { strictOctave: true });
+    expect(verdicts(result)[1]).toBe("missed");
+    expect(result.hit).toBe(false);
+  });
+
+  it("blames the hand that was wrong, not the one that was right", () => {
+    const played = [
+      { at: 0, midi: 50 }, { at: 0, midi: 64 }, // LH played D3 instead of C3
+      { at: 1, midi: 64 }, { at: 2, midi: 65 }, { at: 3, midi: 67 },
+    ];
+    const result = score(bar, played, { strictOctave: true });
+    expect(verdicts(result)[0]).toBe("wrong");
+    expect(result.verdicts[0].played).toBe(50);
+    expect(verdicts(result)[1]).toBe("ok");
+  });
+
+  it("accepts the hands in either order within the beat", () => {
+    const played = [
+      { at: 0.02, midi: 64 }, { at: 0, midi: 48 },
+      { at: 1, midi: 64 }, { at: 2, midi: 65 }, { at: 3, midi: 67 },
+    ];
+    expect(score(bar, played, { strictOctave: true }).hit).toBe(true);
+  });
+
+  it("holds a whole-note bass under a moving right hand", () => {
+    const withHeldBass = [
+      { at: 0, midis: [48] },
+      ...expectNotes([64, 64, 65, 67]),
+    ];
+    const played = [
+      { at: 0, midi: 48 }, { at: 0, midi: 64 },
+      { at: 1, midi: 64 }, { at: 2, midi: 65 }, { at: 3, midi: 67 },
+    ];
+    expect(score(withHeldBass, played, { strictOctave: true }).hit).toBe(true);
+  });
+});

@@ -10,6 +10,9 @@ silently change what a "3rd" means. Accidentals live in note_spec(), which
 spells any MIDI number for VexFlow and is what the chord track uses.
 """
 
+from .pieces import PIECES, bar_key, piece_items  # noqa: F401  — re-exported
+
+
 def _n(key, letter, midi, pos, pos_label):
     return {"key": key, "letter": letter, "midi": midi, "pos": pos, "posLabel": pos_label}
 
@@ -253,6 +256,17 @@ SKILL_NODES = [
         "title": "The grand staff",
         "blurb": "Both staves together — middle C is the bridge between your hands.",
     },
+    *[
+        {
+            "id": f"piece-{piece_id}",
+            "kind": "piece",
+            "piece": piece_id,
+            "title": piece["title"],
+            "blurb": f"{piece['composer']} — {len(piece['bars'])} bars. "
+                     "Practise a bar at a time; the ones you fumble come back.",
+        }
+        for piece_id, piece in PIECES.items()
+    ],
     {
         "id": "technique-5finger",
         "kind": "technique",
@@ -350,6 +364,8 @@ def node_items(node):
             (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
             for size in node["sizes"]
         ]
+    if kind == "piece":
+        return piece_items(node["piece"])
     if kind == "technique":
         return [(f"tech:{pid}", technique_spec(pid)) for pid in node["patterns"]]
     if kind in ("ear-pitch", "ear-phrases"):

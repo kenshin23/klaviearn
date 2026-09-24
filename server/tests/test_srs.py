@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 
 from app import srs
-from app.content import NODE_BY_ID, NOTES
+from app.content import NODE_BY_ID, NOTES, node_items
 from app.models import ItemSRS, utcnow
 
 
@@ -386,3 +386,79 @@ def test_technique_reports_its_scaffold_level(db, user_id):
             srs.record_review(item, [True])
     db.commit()
     assert all(ex["level"] == 2 for ex in srs.build_session(db, user_id, node, "technique"))
+
+
+# --- Repertoire --------------------------------------------------------------
+
+@pytest.mark.parametrize("drill", ["piece-rh", "piece-lh", "piece-both"])
+def test_a_piece_session_is_a_run_of_bars(db, user_id, drill):
+    exercises = srs.build_session(db, user_id, NODE_BY_ID["piece-ode-to-joy"], drill)
+    assert len(exercises) == 8
+    for ex in exercises:
+        assert ex["drill"] == drill
+        assert ex["item"].startswith("piece:ode-to-joy:b")
+        assert ex["rh"] and ex["lh"]
+
+
+def test_the_bar_you_keep_fumbling_comes_back(db, user_id):
+    """Section looping is not a feature here — it is what the SRS already does
+    once the bar is the item. Prove it rather than assume it."""
+    node = NODE_BY_ID["piece-ode-to-joy"]
+    for number in range(1, 9):
+        item = srs.get_or_create(db, user_id, f"piece:ode-to-joy:b{number}")
+        # Every bar solid except bar 5, which keeps falling over.
+        srs.record_review(item, [False] * 6 if number == 5 else [True] * 6)
+    db.commit()
+
+    drawn = [ex["item"] for ex in srs.build_session(db, user_id, node, "piece-rh", length=400)]
+    fumbled = drawn.count("piece:ode-to-joy:b5")
+    solid = drawn.count("piece:ode-to-joy:b1")
+    assert fumbled > solid * 2, f"weak bar drawn {fumbled}x vs solid {solid}x"
+
+
+def test_a_new_bar_comes_slowly_and_a_known_one_at_tempo(db, user_id):
+    node = NODE_BY_ID["piece-ode-to-joy"]
+    fresh = srs.build_session(db, user_id, node, "piece-rh")
+    assert all(ex["bpm"] < ex["tempo"] for ex in fresh), "nothing starts at full speed"
+
+    for number in range(1, 9):
+        item = srs.get_or_create(db, user_id, f"piece:ode-to-joy:b{number}")
+        for _ in range(srs.HITS_PER_LEVEL * 2):
+            srs.record_review(item, [True])
+    db.commit()
+
+    mastered = srs.build_session(db, user_id, node, "piece-rh")
+    assert all(ex["bpm"] == ex["tempo"] for ex in mastered)
+
+
+def test_both_hands_share_one_schedule_per_bar(db, user_id):
+    """A bar is a bar. Practising it left-handed is evidence about that bar."""
+    node = NODE_BY_ID["piece-mary-lamb"]
+    rh = {ex["item"] for ex in srs.build_session(db, user_id, node, "piece-rh", length=80)}
+    lh = {ex["item"] for ex in srs.build_session(db, user_id, node, "piece-lh", length=80)}
+    assert rh == lh
+
+
+def test_pieces_do_not_share_items_with_each_other(db, user_id):
+    ode = {k for k, _ in node_items(NODE_BY_ID["piece-ode-to-joy"])}
+    mary = {k for k, _ in node_items(NODE_BY_ID["piece-mary-lamb"])}
+    assert ode.isdisjoint(mary)
+
+
+def test_an_explicit_session_length_is_honoured(db, user_id):
+    """It used to be ignored for phrase, technique and piece drills, which
+    quietly made any test that passed one meaningless."""
+    cases = [
+        (NODE_BY_ID["octave"], "phrase", 12),
+        (NODE_BY_ID["technique-scales"], "technique", 9),
+        (NODE_BY_ID["piece-ode-to-joy"], "piece-rh", 25),
+        (NODE_BY_ID["ear-phrases"], "ear-phrase", 7),
+    ]
+    for node, drill, length in cases:
+        assert len(srs.build_session(db, user_id, node, drill, length=length)) == length, drill
+
+
+def test_each_drill_has_a_sensible_default_length(db, user_id):
+    assert len(srs.build_session(db, user_id, NODE_BY_ID["octave"], "phrase")) == srs.PHRASE_COUNT
+    assert len(srs.build_session(db, user_id, NODE_BY_ID["piece-mary-lamb"], "piece-both")) == 8
+    assert len(srs.build_session(db, user_id, NODE_BY_ID["octave"], "note")) == srs.SESSION_LENGTH

@@ -15,6 +15,7 @@ from app.content import (
     node_items,
     note_spec,
 )
+from app.pieces import HANDS, PIECES, bar_beats, bar_key, bar_tempo, piece_items
 from app.routes import DRILLS_BY_KIND
 
 # The Attempt/ResultIn schema caps an item key at 32 characters.
@@ -192,6 +193,9 @@ def test_item_metadata_carries_what_each_drill_renders():
                 assert len(meta["midis"]) == 3
                 assert len(meta["notes"]) == 3
                 assert meta["clef"] == "treble"
+            elif kind == "piece":
+                assert meta["bar"] >= 1 and meta["title"]
+                assert meta["rh"] or meta["lh"]
             elif kind == "technique":
                 assert len(meta["midis"]) == len(meta["fingers"])
                 assert meta["name"] and meta["hand"] in ("rh", "lh")
@@ -348,3 +352,105 @@ def test_technique_specs_carry_what_the_staff_draws():
             assert len(meta["notes"]) == len(meta["midis"])
             assert all(n["clef"] == meta["clef"] for n in meta["notes"])
             assert [n["midi"] for n in meta["notes"]] == meta["midis"]
+
+
+# --- Repertoire --------------------------------------------------------------
+
+PIECE_NODES = [f"piece-{pid}" for pid in PIECES]
+
+
+def test_every_bar_is_its_own_srs_item():
+    """"Which bar do I keep fumbling" needs the bar to be the unit."""
+    for piece_id, piece in PIECES.items():
+        keys = [k for k, _ in piece_items(piece_id)]
+        assert keys == [bar_key(piece_id, n) for n in range(1, len(piece["bars"]) + 1)]
+        assert len(set(keys)) == len(keys)
+
+
+def test_piece_item_keys_fit_the_schema():
+    """The id is part of the key, so a long title cannot blow the 32-char cap."""
+    for piece_id, piece in PIECES.items():
+        longest = bar_key(piece_id, len(piece["bars"]))
+        assert len(longest) <= MAX_ITEM_KEY, longest
+
+
+def test_every_bar_holds_exactly_its_time_signature():
+    for piece_id, piece in PIECES.items():
+        for number, bar in enumerate(piece["bars"], 1):
+            for hand in ("rh", "lh"):
+                if not bar[hand]:
+                    continue
+                assert bar_beats(bar, hand) == piece["beatsPerBar"], \
+                    f"{piece_id} bar {number} {hand} is {bar_beats(bar, hand)} beats"
+
+
+def test_both_hands_of_a_bar_last_the_same_time():
+    for piece_id, piece in PIECES.items():
+        for number, bar in enumerate(piece["bars"], 1):
+            assert bar_beats(bar, "rh") == bar_beats(bar, "lh"), f"{piece_id} bar {number}"
+
+
+def test_every_note_is_playable_and_fingered():
+    for piece_id, piece in PIECES.items():
+        for number, bar in enumerate(piece["bars"], 1):
+            for hand in ("rh", "lh"):
+                for note in bar[hand]:
+                    if note.get("rest"):
+                        continue
+                    assert 21 <= note["midi"] <= 108, f"{piece_id} bar {number}"
+                    assert 1 <= note["finger"] <= 5, f"{piece_id} bar {number}"
+                    assert note["beats"] > 0
+
+
+def test_each_hand_stays_inside_one_five_finger_position():
+    """The fingering is only honest if the hand never has to move."""
+    for piece_id, piece in PIECES.items():
+        for hand in ("rh", "lh"):
+            midis = [n["midi"] for bar in piece["bars"] for n in bar[hand] if not n.get("rest")]
+            assert max(midis) - min(midis) <= 7, f"{piece_id} {hand} spans more than a fifth"
+
+
+def test_the_hands_do_not_overlap():
+    for piece_id, piece in PIECES.items():
+        rh = [n["midi"] for bar in piece["bars"] for n in bar["rh"]]
+        lh = [n["midi"] for bar in piece["bars"] for n in bar["lh"]]
+        assert min(rh) > max(lh), f"{piece_id} hands cross"
+
+
+def test_fingering_is_consistent_for_a_given_note():
+    """A five-finger position means one note is always the same finger."""
+    for piece_id, piece in PIECES.items():
+        for hand in ("rh", "lh"):
+            fingers = {}
+            for bar in piece["bars"]:
+                for note in bar[hand]:
+                    fingers.setdefault(note["midi"], set()).add(note["finger"])
+            for midi, used in fingers.items():
+                assert len(used) == 1, f"{piece_id} {hand} {midi} uses {used}"
+
+
+def test_tempo_rises_with_the_bar_you_know():
+    for piece in PIECES.values():
+        slow, middling, full = (bar_tempo(piece, lvl) for lvl in (0, 1, 2))
+        assert slow < middling < full
+        assert full == piece["tempo"], "a mastered bar comes at the piece's tempo"
+        assert slow >= 50, "never so slow the pulse disappears"
+
+
+def test_tempo_clamps_outside_the_ladder():
+    piece = next(iter(PIECES.values()))
+    assert bar_tempo(piece, 9) == bar_tempo(piece, 2)
+    assert bar_tempo(piece, -1) == bar_tempo(piece, 0)
+
+
+def test_every_piece_has_a_node_offering_all_three_hand_drills():
+    for node_id in PIECE_NODES:
+        node = NODE_BY_ID[node_id]
+        assert node["kind"] == "piece"
+        assert DRILLS_BY_KIND["piece"] == {"piece-rh", "piece-lh", "piece-both"}
+        assert node["title"] and node["blurb"]
+
+
+def test_hands_map_covers_every_piece_drill():
+    assert set(HANDS) == DRILLS_BY_KIND["piece"]
+    assert HANDS["piece-both"] == ("rh", "lh")
