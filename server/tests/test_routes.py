@@ -515,3 +515,63 @@ def test_a_bar_carries_both_hands_whichever_drill_asked(auth_client):
         for ex in start(auth_client, "piece-ode-to-joy", drill).json()["exercises"]:
             assert ex["rh"] and ex["lh"]
             assert all("finger" in n for n in ex["rh"] + ex["lh"])
+
+
+# --- Key signatures ----------------------------------------------------------
+
+def test_the_key_drill_builds_a_session(auth_client):
+    r = start(auth_client, "key-signatures", "key-name")
+    assert r.status_code == 200
+    valid = set(items_of("key-signatures"))
+    exercises = r.json()["exercises"]
+    assert len(exercises) == SESSION_LENGTH
+    for ex in exercises:
+        assert ex["item"] in valid
+        assert ex["drill"] == "key-name"
+        assert ex["vex"] and ex["name"]
+        assert ex["sharps"] == 0 or ex["flats"] == 0
+
+
+def test_the_key_drill_sends_what_the_staff_needs_and_nothing_more(auth_client):
+    """The answer is the key's name; the exercise has to carry it for the
+    verdict, so the renderer is what must not show it."""
+    for ex in start(auth_client, "key-signatures", "key-name").json()["exercises"]:
+        assert "signature" in ex and "keyId" in ex
+
+
+@pytest.mark.parametrize(
+    ("node_id", "drill"),
+    [("key-signatures", "note"), ("octave", "key-name"), ("technique-scales", "key-name")],
+)
+def test_key_drills_and_nodes_do_not_cross_wires(auth_client, node_id, drill):
+    assert start(auth_client, node_id, drill).status_code == 422
+
+
+def test_a_key_session_records_progress(auth_client, db):
+    exercises = start(auth_client, "key-signatures", "key-name").json()["exercises"]
+    results = [{"item": ex["item"], "hit": True} for ex in exercises]
+    assert complete(auth_client, "key-signatures", "key-name", results).json()["xpGained"] > 0
+    rows = db.scalars(select(ItemSRS)).all()
+    assert rows and all(r.item_key.startswith("key:") for r in rows)
+
+
+# --- Multi-key technique -----------------------------------------------------
+
+def test_the_technique_nodes_now_cover_more_than_c(auth_client):
+    for node_id in ("technique-scales", "technique-arpeggios"):
+        keys = {k.split(":")[2] for k in items_of(node_id)}
+        assert keys == {"C", "G", "D", "F", "Am"}, node_id
+
+
+def test_a_scale_in_a_sharp_key_draws_no_accidentals(auth_client):
+    """The signature carries them; the notes stay clean."""
+    for ex in start(auth_client, "technique-scales", "technique").json()["exercises"]:
+        if ex["key"] in ("C", "G", "D", "F"):
+            assert all(n["written"] == "" for n in ex["notes"]), ex["item"]
+
+
+def test_the_harmonic_minor_carries_its_own_accidental(auth_client):
+    exercises = start(auth_client, "technique-scales", "technique", ).json()["exercises"]
+    minors = [ex for ex in exercises if ex["key"] == "Am"]
+    for ex in minors:
+        assert sum(1 for n in ex["notes"] if n["written"] == "#") == 2, ex["item"]

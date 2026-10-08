@@ -10,6 +10,7 @@ silently change what a "3rd" means. Accidentals live in note_spec(), which
 spells any MIDI number for VexFlow and is what the chord track uses.
 """
 
+from .keys import DEFAULT_KEY, KEYS, note_in_key, spell  # noqa: F401  — re-exported
 from .pieces import PIECES, bar_key, piece_items  # noqa: F401  — re-exported
 
 
@@ -124,44 +125,72 @@ def ear_key(midi: int) -> str:
 
 # --- Technique ---------------------------------------------------------------
 # One beat per note at a slow tempo: these drills are about evenness and the
-# fingering, not speed. The fingering is the standard one — thumb-under after
-# E ascending in the right hand, third finger crossing over in the left — and
-# it is what the scaffold shows and then withdraws.
+# fingering, not speed. The patterns are generated from the scale shapes
+# rather than typed out, because fifteen notes x two hands x five keys is a
+# lot of places to mistype a fingering.
 #
 # The app cannot SEE which finger you used. It teaches and prompts, and grades
 # note order and evenness, which is what a teacher does between lessons.
-TECHNIQUE_PATTERNS = {
-    "5finger:rh": {
-        "name": "C position, right hand", "hand": "rh", "clef": "treble",
-        "midis":   [60, 62, 64, 65, 67, 65, 64, 62, 60],
-        "fingers": [1,  2,  3,  4,  5,  4,  3,  2,  1],
-    },
-    "5finger:lh": {
-        "name": "C position, left hand", "hand": "lh", "clef": "bass",
-        "midis":   [48, 50, 52, 53, 55, 53, 52, 50, 48],
-        "fingers": [5,  4,  3,  2,  1,  2,  3,  4,  5],
-    },
-    "scale:C:rh": {
-        "name": "C major scale, right hand", "hand": "rh", "clef": "treble",
-        "midis":   [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60],
-        "fingers": [1,  2,  3,  1,  2,  3,  4,  5,  4,  3,  2,  1,  3,  2,  1],
-    },
-    "scale:C:lh": {
-        "name": "C major scale, left hand", "hand": "lh", "clef": "bass",
-        "midis":   [48, 50, 52, 53, 55, 57, 59, 60, 59, 57, 55, 53, 52, 50, 48],
-        "fingers": [5,  4,  3,  2,  1,  3,  2,  1,  2,  3,  1,  2,  3,  4,  5],
-    },
-    "arp:C:rh": {
-        "name": "C major arpeggio, right hand", "hand": "rh", "clef": "treble",
-        "midis":   [60, 64, 67, 72, 67, 64, 60],
-        "fingers": [1,  2,  3,  5,  3,  2,  1],
-    },
-    "arp:C:lh": {
-        "name": "C major arpeggio, left hand", "hand": "lh", "clef": "bass",
-        "midis":   [48, 52, 55, 60, 55, 52, 48],
-        "fingers": [5,  3,  2,  1,  2,  3,  5],
-    },
+
+MAJOR = (0, 2, 4, 5, 7, 9, 11, 12)
+HARMONIC_MINOR = (0, 2, 3, 5, 7, 8, 11, 12)
+FIVE_FINGER = (0, 2, 4, 5, 7)
+TRIAD = {"major": (0, 4, 7, 12), "minor": (0, 3, 7, 12)}
+
+# Standard one-octave fingering, (ascending, descending-after-the-top).
+# F major is the exception in the right hand: the thumb tucks under after the
+# fourth finger, so it ends on 4 rather than 5.
+RH_SCALE = ([1, 2, 3, 1, 2, 3, 4, 5], [4, 3, 2, 1, 3, 2, 1])
+RH_SCALE_F = ([1, 2, 3, 4, 1, 2, 3, 4], [3, 2, 1, 4, 3, 2, 1])
+LH_SCALE = ([5, 4, 3, 2, 1, 3, 2, 1], [2, 3, 1, 2, 3, 4, 5])
+RH_ARPEGGIO = ([1, 2, 3, 5], [3, 2, 1])
+LH_ARPEGGIO = ([5, 3, 2, 1], [2, 3, 5])
+RH_FIVE = ([1, 2, 3, 4, 5], [4, 3, 2, 1])
+LH_FIVE = ([5, 4, 3, 2, 1], [2, 3, 4, 5])
+
+
+def _up_and_down(tonic: int, steps, ascending, descending):
+    """Up the shape and back down, without sounding the top note twice."""
+    up = [tonic + step for step in steps]
+    midis = up + up[-2::-1]
+    return midis, list(ascending) + list(descending)
+
+
+def _pattern(name, hand, key_id, tonic, steps, fingering):
+    midis, fingers = _up_and_down(tonic, steps, *fingering)
+    return {
+        "name": name, "hand": hand, "clef": "treble" if hand == "rh" else "bass",
+        "key": key_id, "midis": midis, "fingers": fingers,
+    }
+
+
+# Tonic each hand starts on, per key: right hand from middle C upwards, left
+# hand in the octave below, so both stay near their own staff.
+_TONICS = {
+    "C":  (60, 48), "G": (67, 43), "D": (62, 50), "F": (65, 41), "Am": (69, 45),
 }
+_SCALE_SHAPE = {"Am": HARMONIC_MINOR}
+_TRIAD_SHAPE = {"Am": TRIAD["minor"]}
+
+TECHNIQUE_PATTERNS = {
+    "5finger:rh": _pattern("C position, right hand", "rh", "C", 60, FIVE_FINGER, RH_FIVE),
+    "5finger:lh": _pattern("C position, left hand", "lh", "C", 48, FIVE_FINGER, LH_FIVE),
+}
+
+for _key_id, (_rh_tonic, _lh_tonic) in _TONICS.items():
+    _key_name = KEYS[_key_id]["name"]
+    _steps = _SCALE_SHAPE.get(_key_id, MAJOR)
+    _rh_fingering = RH_SCALE_F if _key_id == "F" else RH_SCALE
+    TECHNIQUE_PATTERNS[f"scale:{_key_id}:rh"] = _pattern(
+        f"{_key_name} scale, right hand", "rh", _key_id, _rh_tonic, _steps, _rh_fingering)
+    TECHNIQUE_PATTERNS[f"scale:{_key_id}:lh"] = _pattern(
+        f"{_key_name} scale, left hand", "lh", _key_id, _lh_tonic, _steps, LH_SCALE)
+
+    _triad = _TRIAD_SHAPE.get(_key_id, TRIAD["major"])
+    TECHNIQUE_PATTERNS[f"arp:{_key_id}:rh"] = _pattern(
+        f"{_key_name} arpeggio, right hand", "rh", _key_id, _rh_tonic, _triad, RH_ARPEGGIO)
+    TECHNIQUE_PATTERNS[f"arp:{_key_id}:lh"] = _pattern(
+        f"{_key_name} arpeggio, left hand", "lh", _key_id, _lh_tonic, _triad, LH_ARPEGGIO)
 
 
 def technique_spec(pattern_id: str) -> dict:
@@ -169,7 +198,7 @@ def technique_spec(pattern_id: str) -> dict:
     return {
         **pattern,
         "pattern": pattern_id,
-        "notes": [note_spec(m, pattern["clef"]) for m in pattern["midis"]],
+        "notes": spell(pattern["midis"], pattern["key"], pattern["clef"]),
     }
 
 
@@ -268,6 +297,13 @@ SKILL_NODES = [
         for piece_id, piece in PIECES.items()
     ],
     {
+        "id": "key-signatures",
+        "kind": "keys",
+        "title": "Key signatures",
+        "blurb": "Count the sharps or flats at the front and name the key — before you play a note of it.",
+        "keys": ["C", "G", "D", "A", "E", "F", "Bb", "Eb"],
+    },
+    {
         "id": "technique-5finger",
         "kind": "technique",
         "title": "Five-finger positions",
@@ -278,15 +314,15 @@ SKILL_NODES = [
         "id": "technique-scales",
         "kind": "technique",
         "title": "Scales, thumb under",
-        "blurb": "C major, one octave. The thumb tucking under is the whole trick.",
-        "patterns": ["scale:C:rh", "scale:C:lh"],
+        "blurb": "One octave, hands separately. The thumb tucking under is the whole trick.",
+        "patterns": [f"scale:{k}:{h}" for k in ("C", "G", "D", "F", "Am") for h in ("rh", "lh")],
     },
     {
         "id": "technique-arpeggios",
         "kind": "technique",
         "title": "Arpeggios",
         "blurb": "The triad spread out under the hand — a chord you play one note at a time.",
-        "patterns": ["arp:C:rh", "arp:C:lh"],
+        "patterns": [f"arp:{k}:{h}" for k in ("C", "G", "D", "F", "Am") for h in ("rh", "lh")],
     },
     {
         "id": "ear-pitch",
@@ -363,6 +399,11 @@ def node_items(node):
         return [
             (f"int:{size}", {"size": size, "name": INTERVAL_NAMES[size]})
             for size in node["sizes"]
+        ]
+    if kind == "keys":
+        return [
+            (f"key:{key_id}", {**KEYS[key_id], "keyId": key_id})
+            for key_id in node["keys"]
         ]
     if kind == "piece":
         return piece_items(node["piece"])

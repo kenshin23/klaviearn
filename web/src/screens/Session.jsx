@@ -9,8 +9,11 @@ import RhythmStaff from "../components/RhythmStaff.jsx";
 import TimedPlay from "../components/TimedPlay.jsx";
 import TechniqueStaff from "../components/TechniqueStaff.jsx";
 import PassageStaff from "../components/PassageStaff.jsx";
+import KeySignatureStaff from "../components/KeySignatureStaff.jsx";
 import Keys from "../components/Keys.jsx";
-import { chordLabel, noteLabel, noteName, posLabel, rhythmName, techniqueName, t } from "../lib/i18n.js";
+import {
+  chordLabel, keyLabel, keyName, noteLabel, noteName, posLabel, rhythmName, techniqueName, t,
+} from "../lib/i18n.js";
 import { audioContext, chimeCorrect, chimeWrong, tick, playChord, playMidi, playPlan } from "../lib/audio.js";
 import { playbackPlan, planBeats } from "../lib/ear.js";
 import { expectNotes, expectTaps } from "../lib/evaluator.js";
@@ -256,6 +259,28 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     }
   }
 
+  function answerKey(keyId) {
+    const { state, exercise } = live.current;
+    if (state.phase !== "listen" || exercise.drill !== "key-name") return;
+    if (keyId === exercise.keyId) {
+      chimeCorrect();
+      dispatch({
+        type: "correct",
+        entries: [{ item: exercise.item, hit: state.firstTry, played: null }],
+        message: `${t("Yes —")} ${keyName(exercise.name)}.`,
+      });
+    } else {
+      chimeWrong();
+      const count = exercise.sharps || exercise.flats;
+      dispatch({
+        type: "wrong",
+        message: count === 0
+          ? t("Nothing at the front — count again.")
+          : `${t("Count again:")} ${count} ${t(exercise.sharps ? "sharp#n" : "flat#n")}.`,
+      });
+    }
+  }
+
   function answerQuality(quality) {
     const { state, exercise } = live.current;
     if (state.phase !== "listen" || exercise.drill !== "ear-chord") return;
@@ -427,7 +452,9 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       </div>
 
       <section className={`card staff-card ${state.phase === "feedback" ? "flash-ok" : ""} ${state.message && state.phase === "listen" && !state.firstTry ? "flash-bad" : ""} size-${settings.staffSize}`}>
-        {isEarDrill(exercise) ? (
+        {exercise.drill === "key-name" ? (
+          <KeySignatureStaff exercise={exercise} />
+        ) : isEarDrill(exercise) ? (
           <EarPrompt beats={planBeats(earPlan)} onReplay={replay} />
         ) : exercise.drill === "phrase" || exercise.drill === "phrase-timed" ? (
           <PhraseStaff notes={exercise.notes} currentIdx={phrase.idx} scaffold={scaffold} />
@@ -486,6 +513,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
             "piece-rh": "Play this bar with your right hand.",
             "piece-lh": "Play this bar with your left hand.",
             "piece-both": "Play this bar with both hands.",
+            "key-name": "Which key is this?",
           }[exercise.drill])}
         {mic.status === "listening" && (
           <span className="hearing">
@@ -522,6 +550,16 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           </div>
           <Keys onAnswer={answerNote} disabled={state.phase !== "listen"} />
         </>
+      )}
+
+      {exercise.drill === "key-name" && (
+        <div className="row keys-answer">
+          {["C", "G", "D", "A", "E", "F", "Bb", "Eb"].map(keyId => (
+            <button key={keyId} className="btn answer" onClick={() => answerKey(keyId)}>
+              {keyLabel(keyId)}
+            </button>
+          ))}
+        </div>
       )}
 
       {exercise.drill === "ear-chord" && (

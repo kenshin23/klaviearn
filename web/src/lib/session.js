@@ -3,7 +3,7 @@
 // exercise shapes.
 import {
   chordKey, chordSpec, EAR_CHORD_ROOTS, earKey, INTERVAL_NAMES, NOTES, itemKey, noteMeta, noteSpec,
-  QUALITY_NAMES, RHYTHM_PATTERNS, techniqueSpec,
+  KEYS, QUALITY_NAMES, RHYTHM_PATTERNS, techniqueSpec,
 } from "./notes.js";
 import { PIECES, barTempo, pieceItems } from "./pieces.js";
 
@@ -50,6 +50,8 @@ export function buildSession(node, drill, noteStats, length) {
         return node.triads.map(([root, quality]) =>
           entry(chordKey(root, quality), chordSpec(root, quality)),
         );
+      case "keys":
+        return node.keys.map(k => entry(`key:${k}`, { ...KEYS[k], keyId: k }));
       case "piece":
         return pieceItems(node.piece).map(([key, meta]) => entry(key, meta));
       case "technique":

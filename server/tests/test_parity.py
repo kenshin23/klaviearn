@@ -17,11 +17,13 @@ from app.content import (
     NOTES,
     RHYTHM_PATTERNS,
     SKILL_NODES,
+    TECHNIQUE_PATTERNS,
     chord_key,
     chord_spec,
     node_items,
     note_spec,
 )
+from app.keys import KEYS
 from app.pieces import PIECES, TEMPO_STEPS
 
 WEB = pathlib.Path(__file__).resolve().parents[2] / "web"
@@ -45,6 +47,8 @@ import(({json.dumps(str(NOTES_JS))})).then(m => {{
     rhythms: m.RHYTHM_PATTERNS,
     spellings: Object.fromEntries(probes.map(x => [x, m.noteSpec(x)])),
     pieces: m.PIECES,
+    keys: m.KEYS,
+    technique: m.TECHNIQUE_PATTERNS,
     tempoSteps: m.TEMPO_STEPS,
     chords: Object.fromEntries(
       (m.SKILL_NODES.find(n => n.id === "chords")?.triads ?? []).map(
@@ -196,3 +200,30 @@ def test_the_tempo_ladder_matches(js):
     """Both sides decide how fast a bar is asked for; a drift would mean the
     same bar comes at two different tempos depending on whether you signed in."""
     assert js["tempoSteps"] == list(TEMPO_STEPS)
+
+
+# --- Keys and technique ------------------------------------------------------
+# Both are generated on both sides now rather than transcribed, which removes
+# one kind of drift and introduces another: two generators that must agree.
+
+def test_the_same_keys(js):
+    assert set(js["keys"]) == set(KEYS)
+
+
+def test_every_key_signature_matches(js):
+    for key_id, key in KEYS.items():
+        for field in ("name", "vex", "tonic", "mode", "sharps", "flats", "prefers"):
+            assert js["keys"][key_id][field] == key[field], f"{key_id}.{field}"
+        assert js["keys"][key_id]["signature"] == key["signature"], key_id
+
+
+def test_the_same_technique_patterns(js):
+    assert set(js["technique"]) == set(TECHNIQUE_PATTERNS)
+
+
+def test_every_pattern_has_the_same_notes_and_fingering(js):
+    """A fingering that differs by hand or by language is a fingering that
+    teaches two different things."""
+    for pid, pattern in TECHNIQUE_PATTERNS.items():
+        for field in ("name", "hand", "clef", "key", "midis", "fingers"):
+            assert js["technique"][pid][field] == pattern[field], f"{pid}.{field}"

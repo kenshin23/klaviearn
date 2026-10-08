@@ -16,6 +16,7 @@ const DRILLS = {
   intervals: [["interval", "▶ Name the interval", "primary"]],
   grand: [["note", "▶ Read notes", "primary"]],
   chords: [["chord", "▶ Play the chord", "primary"]],
+  keys: [["key-name", "▶ Name the key", "primary"]],
   technique: [["technique", "▶ Play the pattern", "primary"]],
   piece: [
     ["piece-rh", "▶ Right hand", "primary"],
@@ -56,6 +57,7 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
                   : node.kind === "chords" ? "🎹 "
                   : node.kind?.startsWith("ear-") ? "👂 "
                   : node.kind === "technique" ? "✋ "
+                  : node.kind === "keys" ? "♯ "
                   : node.kind === "piece" ? "🎼 "
                   : node.kind === "grand" ? "𝄞𝄢 "
                   : node.clef === "bass" ? "𝄢 " : "𝄞 "}

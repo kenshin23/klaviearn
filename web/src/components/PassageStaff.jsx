@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import {
-  Renderer, Stave, StaveNote, StaveConnector, Voice, Formatter, Dot,
+  Renderer, Stave, StaveNote, StaveConnector, Voice, Formatter, Dot, Accidental,
   Annotation, AnnotationVerticalJustify,
 } from "vexflow";
-import { LETTER_COLORS, noteSpec } from "../lib/notes.js";
+import { KEYS, LETTER_COLORS, noteInKey } from "../lib/notes.js";
 
 // One bar of a piece on the grand staff.
 //
@@ -17,6 +17,11 @@ import { LETTER_COLORS, noteSpec } from "../lib/notes.js";
 
 const DIM = "#b3a98f"; // the hand you are not playing right now
 
+// Pieces record their key as prose ("C major"); the renderer wants the id.
+const KEY_BY_NAME = Object.fromEntries(
+  Object.entries(KEYS).map(([id, k]) => [k.name, id]),
+);
+
 /** Beats to a VexFlow duration, plus how many dots it needs. */
 export function vexDuration(beats) {
   const table = [
@@ -27,16 +32,17 @@ export function vexDuration(beats) {
   return match ? { duration: match[1], dots: match[2] } : { duration: "q", dots: 0 };
 }
 
-function buildVoice(notes, clef, beatsPerBar, { active, showFingers }) {
+function buildVoice(notes, clef, beatsPerBar, { active, showFingers, keyId }) {
   const staveNotes = notes.map(note => {
     const { duration, dots } = vexDuration(note.beats);
-    const spec = noteSpec(note.midi, clef);
+    const spec = noteInKey(note.midi, keyId);
     const staveNote = new StaveNote({
       clef,
       keys: [spec.key],
       duration: note.rest ? `${duration}r` : duration,
     });
     for (let i = 0; i < dots; i++) Dot.buildAndAttach([staveNote], { all: true });
+    if (!note.rest && spec.written) staveNote.addModifier(new Accidental(spec.written), 0);
 
     if (!active) {
       staveNote.setStyle({ fillStyle: DIM, strokeStyle: DIM });
@@ -70,10 +76,15 @@ export default function PassageStaff({ exercise, hands, showFingers }) {
     renderer.resize(W, H);
     const ctx = renderer.getContext();
 
+    const keyId = KEY_BY_NAME[exercise.key] ?? "C";
     const treble = new Stave(20, 20, W - 30);
     treble.addClef("treble");
     const bass = new Stave(20, 135, W - 30);
     bass.addClef("bass");
+    if (keyId !== "C") {
+      treble.addKeySignature(KEYS[keyId].vex);
+      bass.addKeySignature(KEYS[keyId].vex);
+    }
     treble.setContext(ctx).draw();
     bass.setContext(ctx).draw();
     new StaveConnector(treble, bass).setType("brace").setContext(ctx).draw();
@@ -82,10 +93,10 @@ export default function PassageStaff({ exercise, hands, showFingers }) {
     const beats = exercise.beatsPerBar;
     const voices = [
       [buildVoice(exercise.rh, "treble", beats, {
-        active: hands.includes("rh"), showFingers,
+        active: hands.includes("rh"), showFingers, keyId,
       }), treble],
       [buildVoice(exercise.lh, "bass", beats, {
-        active: hands.includes("lh"), showFingers,
+        active: hands.includes("lh"), showFingers, keyId,
       }), bass],
     ];
     for (const [voice, stave] of voices) {

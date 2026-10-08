@@ -400,6 +400,42 @@ pasted into `pieces.py`; the served app never parses XML. It refuses what it
 cannot represent — chords, ties, tuplets, a third staff — because a piece that
 imports *wrong* is worse than one that does not import.
 
+**Phase 9 — Key signatures.** *Built.* The reading track's "accidentals → key
+signatures" step, and the thing nothing graded can happen without: until this
+every note in the app was a white key.
+
+A key breaks an assumption every earlier phase could make — that a MIDI
+number spells itself. Pitch class 10 is B flat in F major and A sharp in B
+major, and `web/src/lib/keys.js` splits one idea into two:
+
+| | |
+|---|---|
+| `acc` | what the note **is** — F sharp has acc `#` |
+| `written` | what gets **drawn** — nothing, if the signature already said so |
+
+So a G major scale draws no accidentals at all (the signature said it once at
+the front), A harmonic minor draws its G sharp twice (A minor's signature has
+nothing to say about G), and an F natural in G major would need a natural to
+cancel the signature. Conflating the two is how notation goes wrong.
+
+On top of it: scales and arpeggios in C, G, D, F major and A harmonic minor,
+hands separately, generated from the scale shapes rather than typed out — and
+a "name the key signature" drill on a deliberately bare grand staff.
+
+Long patterns now draw on two systems, up and back down. That is a legibility
+decision rather than a layout one: the SVG scales to the card's width, so a
+fifteen-note scale on one line rendered at about a third the height of a
+single flashed note, which is the wrong trade in an app whose premise is
+large notation.
+
+**Phase 10 — Graded practice.** Not built. A grade is data plus a view: a
+list of requirements, and a readiness screen colouring each one from SRS
+state already recorded. The four components of a piano exam are already the
+app's four tracks, so this populates existing machinery rather than adding
+any. Requirements are facts and encodable; set pieces are not ours to ship
+(the MusicXML importer is the answer there); and nothing should imply
+endorsement by any exam board.
+
 ## 9. Open questions
 
 - Exact color palette (start with Boomwhackers, validate against your eyes —

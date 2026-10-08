@@ -35,11 +35,11 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phases 1–8 built.** A FastAPI backend in [`server/`](server/) with
+**Phases 1–9 built.** A FastAPI backend in [`server/`](server/) with
 accounts, spaced repetition (SM-2 variant), per-item scaffold fading, XP and
 day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
 works logged-in (server is the source of truth) or as an offline guest
-(localStorage). Twenty-one skill nodes across fifteen drills.
+(localStorage). Twenty-two skill nodes across sixteen drills.
 
 **Reading and rhythm:** notes on the treble, bass and grand staff;
 line-or-space discrimination; 4-note phrases; intervals as shapes; metronome
@@ -49,12 +49,17 @@ rhythm tapping; root-position triads played as a chord.
 minor, and play a four-note phrase back — all with nothing on screen, which
 makes them the drills that need no visual acuity at all.
 
-**Technique:** five-finger positions, C major scales with the thumb under,
-and arpeggios, each hand separately, played against a metronome with the
+**Technique:** five-finger positions, scales and arpeggios in C, G, D and F
+major and A harmonic minor, each hand separately, played against a metronome with the
 fingering printed above the notes until you no longer need it. Phrases can
 be read in time too. These are scored on pitch *and* timing by a shared
 evaluator, which reports per note whether you were on the beat, early, late,
 or on the wrong note entirely.
+
+**Keys:** name a key signature from the sharps or flats at the front. The
+app knows what a key does to notation — a G major scale draws no accidentals
+because the signature already said it, while A harmonic minor draws the G
+sharp its signature never covered.
 
 **Repertoire:** real pieces, a bar at a time, right hand or left hand or
 both. Every bar is its own spaced-repetition item, so the bar you keep
@@ -159,5 +164,7 @@ python3 -m http.server 8000 --directory phase0
 8. ~~**Phase 7** — timed evaluator, technique track, fingering scaffold~~ ✅
 9. ~~**Phase 8** — repertoire: pieces, per-bar SRS, tempo ramp, hands together,
    MusicXML import~~ ✅
-10. **Next** — more repertoire through the importer, and grouping the
-    twenty-one nodes by track before the list gets unwieldy.
+10. ~~**Phase 9** — key signatures, multi-key scales and arpeggios~~ ✅
+11. **Next** — graded practice as a view over the tracks, more repertoire
+    through the importer, and grouping the twenty-two nodes by track before
+    the list gets unwieldy.

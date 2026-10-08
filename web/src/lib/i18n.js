@@ -45,6 +45,8 @@ const STRINGS = {
   // that need an explicit English value (e.g. plural forms).
   en: {
     "due#one": "due",
+    "sharp#n": "sharps",
+    "flat#n": "flats",
   },
   es: {
     "due#one": "pendiente",
@@ -111,6 +113,12 @@ const STRINGS = {
     "▶ Play the chord": "▶ Toca el acorde",
     "▶ Match the pitch": "▶ Encuentra la nota",
     "▶ Play the pattern": "▶ Toca el patrón",
+    "▶ Name the key": "▶ Nombra la tonalidad",
+    "Which key is this?": "¿Qué tonalidad es esta?",
+    "Nothing at the front — count again.": "No hay nada al principio — cuenta otra vez.",
+    "Count again:": "Cuenta otra vez:",
+    "sharp#n": "sostenidos",
+    "flat#n": "bemoles",
     "▶ Right hand": "▶ Mano derecha",
     "Left hand": "Mano izquierda",
     "Hands together": "Manos juntas",
@@ -202,6 +210,10 @@ export const NODE_TEXT_ES = {
     title: "María tenía un corderito",
     blurb: "Tradicional — 8 compases. Practica compás a compás; los que fallas vuelven.",
   },
+  "key-signatures": {
+    title: "Armaduras",
+    blurb: "Cuenta los sostenidos o bemoles del principio y nombra la tonalidad — antes de tocar una nota.",
+  },
   "technique-5finger": { title: "Posiciones de cinco dedos", blurb: "Cinco notas bajo cinco dedos, arriba y abajo, parejo. Donde empieza toda mano." },
   "technique-scales": { title: "Escalas, pulgar por debajo", blurb: "Do mayor, una octava. El pulgar que se mete por debajo es todo el truco." },
   "technique-arpeggios": { title: "Arpegios", blurb: "La tríada extendida bajo la mano — un acorde que tocas nota a nota." },
@@ -256,3 +268,21 @@ const TECHNIQUE_ES = {
   "C major arpeggio, left hand": "Arpegio de Do mayor, mano izquierda",
 };
 export const techniqueName = en => (lang === "es" ? TECHNIQUE_ES[en] ?? en : en);
+
+// Key names follow the note-name setting: C major is Do mayor in solfège.
+const MODE_ES = { major: "mayor", minor: "menor" };
+export function keyName(englishName) {
+  const [letterPart, ...rest] = englishName.split(" ");
+  const mode = englishName.includes("minor") ? "minor" : "major";
+  const flat = rest.includes("flat");
+  const root = (solfege ? SOLFEGE[letterPart] ?? letterPart : letterPart)
+    + (flat ? (lang === "es" ? " bemol" : " flat") : "");
+  return lang === "es" ? `${root} ${MODE_ES[mode]}` : `${root} ${mode}`;
+}
+
+// The short label on an answer button: "B♭" rather than "B flat major".
+export function keyLabel(keyId) {
+  const root = keyId.replace("b", "♭").replace("m", "");
+  const letter = root[0];
+  return (solfege ? SOLFEGE[letter] ?? letter : letter) + root.slice(1);
+}

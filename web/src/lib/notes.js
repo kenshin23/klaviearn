@@ -1,3 +1,4 @@
+import { KEYS as KEY_TABLE, spell as spellInKey } from "./keys.js";
 import { PIECES as PIECES_DATA, barKey as barKeyOf } from "./pieces.js";
 
 // Note metadata and the skill tree, mirroring server/app/content.py.
@@ -108,51 +109,73 @@ export const earKey = midi => `ear:${midi}`;
 // Pieces live in their own module; re-exported so the curriculum reads from
 // one place.
 export { PIECES, TEMPO_STEPS, barKey, barTempo, expectBar, pieceItems } from "./pieces.js";
+export { DEFAULT_KEY, KEYS, noteInKey, spell as spellInKey } from "./keys.js";
 
 // --- Technique --------------------------------------------------------------
-// One beat per note at a slow tempo: these drills are about evenness and the
-// fingering, not speed. Standard C major fingering — thumb-under after E
-// ascending in the right hand, third finger crossing over in the left.
+// Generated from the scale shapes rather than typed out: fifteen notes x two
+// hands x five keys is a lot of places to mistype a fingering.
+
+export const MAJOR = [0, 2, 4, 5, 7, 9, 11, 12];
+export const HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11, 12];
+const FIVE_FINGER = [0, 2, 4, 5, 7];
+const TRIAD = { major: [0, 4, 7, 12], minor: [0, 3, 7, 12] };
+
+// Standard one-octave fingering, [ascending, descending-after-the-top].
+// F major is the right hand's exception: the thumb tucks under after the
+// fourth finger, so it ends on 4 rather than 5.
+const RH_SCALE = [[1, 2, 3, 1, 2, 3, 4, 5], [4, 3, 2, 1, 3, 2, 1]];
+const RH_SCALE_F = [[1, 2, 3, 4, 1, 2, 3, 4], [3, 2, 1, 4, 3, 2, 1]];
+const LH_SCALE = [[5, 4, 3, 2, 1, 3, 2, 1], [2, 3, 1, 2, 3, 4, 5]];
+const RH_ARPEGGIO = [[1, 2, 3, 5], [3, 2, 1]];
+const LH_ARPEGGIO = [[5, 3, 2, 1], [2, 3, 5]];
+const RH_FIVE = [[1, 2, 3, 4, 5], [4, 3, 2, 1]];
+const LH_FIVE = [[5, 4, 3, 2, 1], [2, 3, 4, 5]];
+
+/** Up the shape and back down, without sounding the top note twice. */
+function upAndDown(tonic, steps, [ascending, descending]) {
+  const up = steps.map(step => tonic + step);
+  const down = up.slice(0, -1).reverse();
+  return { midis: [...up, ...down], fingers: [...ascending, ...descending] };
+}
+
+const pattern = (name, hand, keyId, tonic, steps, fingering) => ({
+  name,
+  hand,
+  clef: hand === "rh" ? "treble" : "bass",
+  key: keyId,
+  ...upAndDown(tonic, steps, fingering),
+});
+
+// Tonic each hand starts on: right hand from middle C upwards, left hand in
+// the octave below, so both stay near their own staff.
+const TONICS = { C: [60, 48], G: [67, 43], D: [62, 50], F: [65, 41], Am: [69, 45] };
+const SCALE_SHAPE = { Am: HARMONIC_MINOR };
+const TRIAD_SHAPE = { Am: TRIAD.minor };
+
 export const TECHNIQUE_PATTERNS = {
-  "5finger:rh": {
-    name: "C position, right hand", hand: "rh", clef: "treble",
-    midis:   [60, 62, 64, 65, 67, 65, 64, 62, 60],
-    fingers: [1,  2,  3,  4,  5,  4,  3,  2,  1],
-  },
-  "5finger:lh": {
-    name: "C position, left hand", hand: "lh", clef: "bass",
-    midis:   [48, 50, 52, 53, 55, 53, 52, 50, 48],
-    fingers: [5,  4,  3,  2,  1,  2,  3,  4,  5],
-  },
-  "scale:C:rh": {
-    name: "C major scale, right hand", hand: "rh", clef: "treble",
-    midis:   [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60],
-    fingers: [1,  2,  3,  1,  2,  3,  4,  5,  4,  3,  2,  1,  3,  2,  1],
-  },
-  "scale:C:lh": {
-    name: "C major scale, left hand", hand: "lh", clef: "bass",
-    midis:   [48, 50, 52, 53, 55, 57, 59, 60, 59, 57, 55, 53, 52, 50, 48],
-    fingers: [5,  4,  3,  2,  1,  3,  2,  1,  2,  3,  1,  2,  3,  4,  5],
-  },
-  "arp:C:rh": {
-    name: "C major arpeggio, right hand", hand: "rh", clef: "treble",
-    midis:   [60, 64, 67, 72, 67, 64, 60],
-    fingers: [1,  2,  3,  5,  3,  2,  1],
-  },
-  "arp:C:lh": {
-    name: "C major arpeggio, left hand", hand: "lh", clef: "bass",
-    midis:   [48, 52, 55, 60, 55, 52, 48],
-    fingers: [5,  3,  2,  1,  2,  3,  5],
-  },
+  "5finger:rh": pattern("C position, right hand", "rh", "C", 60, FIVE_FINGER, RH_FIVE),
+  "5finger:lh": pattern("C position, left hand", "lh", "C", 48, FIVE_FINGER, LH_FIVE),
 };
 
+for (const [keyId, [rhTonic, lhTonic]] of Object.entries(TONICS)) {
+  const keyName = KEY_TABLE[keyId].name;
+  const steps = SCALE_SHAPE[keyId] ?? MAJOR;
+  const rhFingering = keyId === "F" ? RH_SCALE_F : RH_SCALE;
+  TECHNIQUE_PATTERNS[`scale:${keyId}:rh`] =
+    pattern(`${keyName} scale, right hand`, "rh", keyId, rhTonic, steps, rhFingering);
+  TECHNIQUE_PATTERNS[`scale:${keyId}:lh`] =
+    pattern(`${keyName} scale, left hand`, "lh", keyId, lhTonic, steps, LH_SCALE);
+
+  const triad = TRIAD_SHAPE[keyId] ?? TRIAD.major;
+  TECHNIQUE_PATTERNS[`arp:${keyId}:rh`] =
+    pattern(`${keyName} arpeggio, right hand`, "rh", keyId, rhTonic, triad, RH_ARPEGGIO);
+  TECHNIQUE_PATTERNS[`arp:${keyId}:lh`] =
+    pattern(`${keyName} arpeggio, left hand`, "lh", keyId, lhTonic, triad, LH_ARPEGGIO);
+}
+
 export function techniqueSpec(patternId) {
-  const pattern = TECHNIQUE_PATTERNS[patternId];
-  return {
-    ...pattern,
-    pattern: patternId,
-    notes: pattern.midis.map(m => noteSpec(m, pattern.clef)),
-  };
+  const p = TECHNIQUE_PATTERNS[patternId];
+  return { ...p, pattern: patternId, notes: spellInKey(p.midis, p.key, p.clef) };
 }
 
 export const SKILL_NODES = [
@@ -241,6 +264,13 @@ export const SKILL_NODES = [
       + "Practise a bar at a time; the ones you fumble come back.",
   })),
   {
+    id: "key-signatures",
+    kind: "keys",
+    title: "Key signatures",
+    blurb: "Count the sharps or flats at the front and name the key — before you play a note of it.",
+    keys: ["C", "G", "D", "A", "E", "F", "Bb", "Eb"],
+  },
+  {
     id: "technique-5finger",
     kind: "technique",
     title: "Five-finger positions",
@@ -251,15 +281,15 @@ export const SKILL_NODES = [
     id: "technique-scales",
     kind: "technique",
     title: "Scales, thumb under",
-    blurb: "C major, one octave. The thumb tucking under is the whole trick.",
-    patterns: ["scale:C:rh", "scale:C:lh"],
+    blurb: "One octave, hands separately. The thumb tucking under is the whole trick.",
+    patterns: ["C", "G", "D", "F", "Am"].flatMap(k => [`scale:${k}:rh`, `scale:${k}:lh`]),
   },
   {
     id: "technique-arpeggios",
     kind: "technique",
     title: "Arpeggios",
     blurb: "The triad spread out under the hand — a chord you play one note at a time.",
-    patterns: ["arp:C:rh", "arp:C:lh"],
+    patterns: ["C", "G", "D", "F", "Am"].flatMap(k => [`arp:${k}:rh`, `arp:${k}:lh`]),
   },
   {
     id: "ear-pitch",
@@ -325,6 +355,8 @@ export const nodeItemKeys = node => {
     // "which note is that?" recall, so they feed one SRS item per note.
     case "piece":
       return PIECES_DATA[node.piece].bars.map((_, i) => barKeyOf(node.piece, i + 1));
+    case "keys":
+      return node.keys.map(k => `key:${k}`);
     case "technique":
       return node.patterns.map(p => `tech:${p}`);
     case "ear-pitch":

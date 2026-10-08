@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import Session from "./Session.jsx";
 import { chordSpec, noteMeta, techniqueSpec } from "../lib/notes.js";
 import { pieceItems } from "../lib/pieces.js";
+import { KEYS } from "../lib/keys.js";
 import { setLocale } from "../lib/i18n.js";
 
 // The staff components are thin wrappers over VexFlow's SVG renderer. This
@@ -867,5 +868,77 @@ describe("practising a piece", () => {
     takeBar([64, 62, 65, 67]); // D instead of E on beat 2
     expect(document.querySelectorAll(".verdict").length).toBe(4);
     expect(document.querySelector(".verdict.wrong")).toBeInTheDocument();
+  });
+});
+
+
+// --- Key signatures ---------------------------------------------------------
+
+const keyExercise = (keyId = "G", over = {}) => ({
+  item: `key:${keyId}`, drill: "key-name", level: 0,
+  ...KEYS[keyId], keyId, ...over,
+});
+
+describe("naming a key signature", () => {
+  it("shows a bare staff and the eight answers", () => {
+    renderSession([keyExercise("G")]);
+    expect(statusText()).toContain("Which key is this?");
+    expect([...document.querySelectorAll(".btn.answer")].map(b => b.textContent))
+      .toEqual(["C", "G", "D", "A", "E", "F", "B♭", "E♭"]);
+  });
+
+  it("draws no notes to read the answer off", () => {
+    renderSession([keyExercise("D")]);
+    expect(document.querySelectorAll(".staff svg g.vf-notehead")).toHaveLength(0);
+  });
+
+  it("accepts the right key and names it in full", () => {
+    const { onFinish } = renderSession([keyExercise("G")]);
+    fireEvent.click(screen.getByRole("button", { name: "G" }));
+    expect(statusText()).toContain("G major");
+    advance();
+    expect(onFinish).toHaveBeenCalledWith([{ item: "key:G", hit: true, played: null }]);
+  });
+
+  it("names a flat key properly", () => {
+    renderSession([keyExercise("Bb")]);
+    fireEvent.click(screen.getByRole("button", { name: "B♭" }));
+    expect(statusText()).toContain("B flat major");
+  });
+
+  it("nudges you to count rather than telling you the answer", () => {
+    renderSession([keyExercise("D")]);
+    fireEvent.click(screen.getByRole("button", { name: "A" }));
+    expect(statusText()).toContain("2 sharps");
+    expect(statusText()).not.toContain("D major");
+  });
+
+  it("counts flats when the key has flats", () => {
+    renderSession([keyExercise("Eb")]);
+    fireEvent.click(screen.getByRole("button", { name: "C" }));
+    expect(statusText()).toContain("3 flats");
+  });
+
+  it("says there is nothing there for C major", () => {
+    renderSession([keyExercise("C")]);
+    fireEvent.click(screen.getByRole("button", { name: "G" }));
+    expect(statusText()).toContain("Nothing at the front");
+  });
+
+  it("lets a retry succeed", () => {
+    renderSession([keyExercise("F")]);
+    fireEvent.click(screen.getByRole("button", { name: "C" }));
+    fireEvent.click(screen.getByRole("button", { name: "F" }));
+    expect(statusText()).toContain("F major");
+  });
+
+  it("uses solfège for the answers in Spanish", () => {
+    setLocale("es", "solfege");
+    renderSession([keyExercise("G")], {
+      settings: { ...SETTINGS, language: "es", noteNames: "solfege" },
+    });
+    expect(screen.getByRole("button", { name: "Sol" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sol" }));
+    expect(statusText()).toContain("Sol mayor");
   });
 });

@@ -193,6 +193,9 @@ def test_item_metadata_carries_what_each_drill_renders():
                 assert len(meta["midis"]) == 3
                 assert len(meta["notes"]) == 3
                 assert meta["clef"] == "treble"
+            elif kind == "keys":
+                assert meta["name"] and meta["keyId"]
+                assert meta["sharps"] == 0 or meta["flats"] == 0
             elif kind == "piece":
                 assert meta["bar"] >= 1 and meta["title"]
                 assert meta["rh"] or meta["lh"]

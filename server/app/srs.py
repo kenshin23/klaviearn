@@ -28,6 +28,7 @@ DRILL_LENGTHS = {
     "phrase-timed": PHRASE_COUNT,
     "ear-phrase": PHRASE_COUNT,
     "technique": TECHNIQUE_LENGTH,
+    "key-name": SESSION_LENGTH,
     "piece-rh": PIECE_LENGTH,
     "piece-lh": PIECE_LENGTH,
     "piece-both": PIECE_LENGTH,
