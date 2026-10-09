@@ -244,3 +244,39 @@ describe("timed phrase reading", () => {
     }
   });
 });
+
+describe("how varied a session is", () => {
+  // Excluding only the immediately previous item still allowed A-B-A-B, which
+  // is a weak exercise: two notes wearing the costume of four.
+  it("never builds a phrase from only two notes", () => {
+    for (const [id, drill] of [["octave", "phrase"], ["ear-phrases", "ear-phrase"]]) {
+      for (let run = 0; run < 60; run++) {
+        for (const ex of buildSession(node(id), drill, NO_STATS)) {
+          const distinct = new Set(ex.notes.map(n => n.midi));
+          expect(distinct.size, `${drill}: ${ex.midis}`).toBeGreaterThan(2);
+        }
+      }
+    }
+  });
+
+  it("never repeats an item within two picks of itself", () => {
+    const items = buildSession(node("octave"), "note", NO_STATS, 200).map(e => e.item);
+    for (let i = 2; i < items.length; i++) {
+      expect(items[i]).not.toBe(items[i - 1]);
+      expect(items[i]).not.toBe(items[i - 2]);
+    }
+  });
+
+  it("still alternates when the pool has only two items", () => {
+    // guide is two notes; the window has to clamp or there is nowhere to go.
+    const items = buildSession(node("guide"), "note", NO_STATS, 20).map(e => e.item);
+    expect(new Set(items).size).toBe(2);
+    for (let i = 1; i < items.length; i++) expect(items[i]).not.toBe(items[i - 1]);
+  });
+
+  it("copes with a pool of exactly one", () => {
+    const solo = { id: "solo", clef: "treble", midis: [60] };
+    expect(buildSession(solo, "note", NO_STATS, 5).map(e => e.item))
+      .toEqual(Array(5).fill("treble:60"));
+  });
+});

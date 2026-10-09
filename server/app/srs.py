@@ -19,6 +19,7 @@ PHRASE_COUNT = 5
 PHRASE_NOTES = 4
 TECHNIQUE_LENGTH = 4  # a scale is 15 notes; ten takes of one would be a chore
 PIECE_LENGTH = 8      # bars per session — enough that a weak one recurs
+RECENT_WINDOW = 2     # how many just-seen items a pick steps around
 
 # How many exercises a drill asks for when the caller does not say. The
 # branches below all honour `length`; they used to hardcode these, which made
@@ -121,25 +122,34 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
         for key, meta in items
     ]
 
-    def pick(prev):
-        candidates = [c for c in pool if c["item"] != prev] if len(pool) > 1 else pool
+    # Avoid the last two picks, not just the last one: excluding one still
+    # allows A-B-A-B, which is a weak exercise — two notes wearing the costume
+    # of four. Clamped so a two-item pool (the guide notes, chord quality)
+    # still has somewhere to go.
+    recent: list[str] = []
+
+    def pick():
+        window = min(RECENT_WINDOW, len(pool) - 1)
+        avoid = set(recent[-window:]) if window > 0 else set()
+        candidates = [c for c in pool if c["item"] not in avoid] or pool
         total = sum(c["weight"] for c in candidates)
         r = random.uniform(0, total)
+        chosen = candidates[-1]
         for c in candidates:
             r -= c["weight"]
             if r <= 0:
-                return c
-        return candidates[-1]
+                chosen = c
+                break
+        recent.append(chosen["item"])
+        return chosen
 
     if drill in ("interval", "ear-interval"):
         # Two notes on the treble staff; name the distance. The base note is
         # random so the answer is the shape, not a memorized picture.
         scale = sorted(NOTES["treble"].keys())
         exercises = []
-        prev = None
         for _ in range(length):
-            p = pick(prev)
-            prev = p["item"]
+            p = pick()
             size = p["meta"]["size"]
             base = random.randint(0, len(scale) - size)
             pair = [
@@ -159,10 +169,9 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
         # Tempo comes from the bar's own level — slow while it is new.
         from .pieces import PIECES
 
-        exercises, prev = [], None
+        exercises = []
         for _ in range(length):
-            p = pick(prev)
-            prev = p["item"]
+            p = pick()
             exercises.append(
                 {
                     "item": p["item"], "drill": drill, "level": p["level"],
@@ -173,10 +182,9 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
         return exercises
 
     if drill == "technique":
-        exercises, prev = [], None
+        exercises = []
         for _ in range(length):
-            p = pick(prev)
-            prev = p["item"]
+            p = pick()
             exercises.append(
                 {"item": p["item"], "drill": drill, "level": p["level"], **p["meta"]}
             )
@@ -185,10 +193,9 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
     if drill == "ear-chord":
         # A fresh root each time: the answer has to be the quality you hear,
         # not a chord you have memorised the pitch of.
-        exercises, prev = [], None
+        exercises = []
         for _ in range(length):
-            p = pick(prev)
-            prev = p["item"]
+            p = pick()
             root = random.choice(node["roots"])
             exercises.append(
                 {"item": p["item"], "drill": drill, "level": p["level"],
@@ -200,10 +207,9 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
         # Micro sight-reading: 5 phrases of 4 notes, read left to right.
         exercises = []
         for _ in range(length):
-            notes, prev = [], None
+            notes = []
             for _ in range(PHRASE_NOTES):
-                p = pick(prev)
-                prev = p["item"]
+                p = pick()
                 notes.append({"item": p["item"], "level": p["level"], **p["meta"]})
             exercises.append(
                 {"drill": drill, "level": min(n["level"] for n in notes), "notes": notes,
@@ -211,9 +217,8 @@ def build_session(db, user_id: int, node: dict, drill: str, length: int | None =
             )
         return exercises
 
-    exercises, prev = [], None
+    exercises = []
     for _ in range(length):
-        p = pick(prev)
-        prev = p["item"]
+        p = pick()
         exercises.append({"item": p["item"], "drill": drill, "level": p["level"], **p["meta"]})
     return exercises

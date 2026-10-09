@@ -4,8 +4,9 @@ from datetime import timedelta
 import pytest
 
 from app import srs
-from app.content import NODE_BY_ID, NOTES, node_items
+from app.content import NODE_BY_ID, NOTES, SKILL_NODES, node_items
 from app.models import ItemSRS, utcnow
+from app.routes import DRILLS_BY_KIND
 
 
 def make_item(**overrides) -> ItemSRS:
@@ -462,3 +463,39 @@ def test_each_drill_has_a_sensible_default_length(db, user_id):
     assert len(srs.build_session(db, user_id, NODE_BY_ID["octave"], "phrase")) == srs.PHRASE_COUNT
     assert len(srs.build_session(db, user_id, NODE_BY_ID["piece-mary-lamb"], "piece-both")) == 8
     assert len(srs.build_session(db, user_id, NODE_BY_ID["octave"], "note")) == srs.SESSION_LENGTH
+
+
+# --- How varied a session is -------------------------------------------------
+
+def test_a_phrase_is_never_built_from_only_two_notes(db, user_id):
+    """Excluding only the previous item still allowed A-B-A-B: two notes
+    wearing the costume of four."""
+    for node_id, drill in [("octave", "phrase"), ("ear-phrases", "ear-phrase")]:
+        for _ in range(40):
+            for ex in srs.build_session(db, user_id, NODE_BY_ID[node_id], drill):
+                distinct = {n["midi"] for n in ex["notes"]}
+                assert len(distinct) > 2, f"{drill}: {ex['midis']}"
+
+
+def test_an_item_never_returns_within_two_picks(db, user_id):
+    items = [e["item"] for e in
+             srs.build_session(db, user_id, NODE_BY_ID["octave"], "note", length=200)]
+    for i in range(2, len(items)):
+        assert items[i] != items[i - 1]
+        assert items[i] != items[i - 2]
+
+
+def test_a_two_item_pool_still_alternates(db, user_id):
+    """The window has to clamp, or a two-note node has nowhere to go."""
+    items = [e["item"] for e in
+             srs.build_session(db, user_id, NODE_BY_ID["guide"], "note", length=20)]
+    assert len(set(items)) == 2
+    assert all(a != b for a, b in zip(items, items[1:], strict=False))
+
+
+def test_every_node_can_still_build_a_session(db, user_id):
+    """A clamp that got the arithmetic wrong would empty the candidate list."""
+    for node in SKILL_NODES:
+        for drill in sorted(DRILLS_BY_KIND[node.get("kind", "notes")]):
+            exercises = srs.build_session(db, user_id, node, drill)
+            assert exercises, f"{node['id']} / {drill} built nothing"

@@ -12,6 +12,7 @@ export const PHRASE_COUNT = 5;
 export const PHRASE_NOTES = 4;
 export const TECHNIQUE_LENGTH = 4; // a scale is 15 notes; ten takes would be a chore
 export const PIECE_LENGTH = 8;     // bars per session — enough that a weak one recurs
+const RECENT_WINDOW = 2;           // how many just-seen items a pick steps around
 
 // What a drill asks for when the caller does not say. The branches below all
 // honour `length`; they used to hardcode these, so an explicit length did
@@ -76,24 +77,32 @@ export function buildSession(node, drill, noteStats, length) {
     }
   })();
 
-  function pick(prev) {
-    const candidates = pool.length > 1 && prev ? pool.filter(c => c.item !== prev) : pool;
+  // Avoid the last two picks, not just the last one: excluding one still
+  // allows A-B-A-B, which is a weak exercise — two notes wearing the costume
+  // of four. Clamped so a two-item pool still has somewhere to go.
+  const recent = [];
+
+  function pick() {
+    const window = Math.min(RECENT_WINDOW, pool.length - 1);
+    const avoid = new Set(window > 0 ? recent.slice(-window) : []);
+    const open = pool.filter(c => !avoid.has(c.item));
+    const candidates = open.length ? open : pool;
     const total = candidates.reduce((sum, c) => sum + c.weight, 0);
     let r = Math.random() * total;
+    let chosen = candidates[candidates.length - 1];
     for (const c of candidates) {
       r -= c.weight;
-      if (r <= 0) return c;
+      if (r <= 0) { chosen = c; break; }
     }
-    return candidates[candidates.length - 1];
+    recent.push(chosen.item);
+    return chosen;
   }
 
   if (drill === "interval" || drill === "ear-interval") {
     const scale = Object.keys(NOTES.treble).map(Number).sort((a, b) => a - b);
     const exercises = [];
-    let prev = null;
     for (let i = 0; i < length; i++) {
-      const p = pick(prev);
-      prev = p.item;
+      const p = pick();
       const base = Math.floor(Math.random() * (scale.length - p.meta.size + 1));
       const notes = [
         noteMeta("treble", scale[base]),
@@ -116,10 +125,8 @@ export function buildSession(node, drill, noteStats, length) {
     // Bars are the items, so the SRS weighting IS the section looping: the
     // bar you keep fumbling comes back on its own.
     const exercises = [];
-    let prev = null;
     for (let i = 0; i < length; i++) {
-      const p = pick(prev);
-      prev = p.item;
+      const p = pick();
       exercises.push({
         item: p.item, drill, level: 0,
         bpm: barTempo(PIECES[p.meta.piece], 0),
@@ -131,10 +138,8 @@ export function buildSession(node, drill, noteStats, length) {
 
   if (drill === "technique") {
     const exercises = [];
-    let prev = null;
     for (let i = 0; i < length; i++) {
-      const p = pick(prev);
-      prev = p.item;
+      const p = pick();
       exercises.push({ item: p.item, drill, level: 0, ...p.meta });
     }
     return exercises;
@@ -144,10 +149,8 @@ export function buildSession(node, drill, noteStats, length) {
     // A fresh root each time: the answer has to be the quality you hear, not
     // a chord you have memorised the pitch of.
     const exercises = [];
-    let prev = null;
     for (let i = 0; i < length; i++) {
-      const p = pick(prev);
-      prev = p.item;
+      const p = pick();
       const root = EAR_CHORD_ROOTS[Math.floor(Math.random() * EAR_CHORD_ROOTS.length)];
       exercises.push({ item: p.item, drill, level: 0, ...chordSpec(root, p.meta.quality) });
     }
@@ -158,10 +161,8 @@ export function buildSession(node, drill, noteStats, length) {
     const exercises = [];
     for (let i = 0; i < length; i++) {
       const notes = [];
-      let prev = null;
-      for (let j = 0; j < PHRASE_NOTES; j++) {
-        const p = pick(prev);
-        prev = p.item;
+        for (let j = 0; j < PHRASE_NOTES; j++) {
+        const p = pick();
         notes.push({ item: p.item, level: 0, ...p.meta });
       }
       exercises.push({ drill, level: 0, notes, midis: notes.map(n => n.midi) });
@@ -170,10 +171,8 @@ export function buildSession(node, drill, noteStats, length) {
   }
 
   const exercises = [];
-  let prev = null;
   for (let i = 0; i < length; i++) {
-    const p = pick(prev);
-    prev = p.item;
+    const p = pick();
     exercises.push({ item: p.item, drill, level: 0, ...p.meta });
   }
   return exercises;
