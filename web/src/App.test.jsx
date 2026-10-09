@@ -7,6 +7,7 @@ vi.mock("./lib/api.js", () => ({
   api: {
     me: vi.fn(), tree: vi.fn(), saveSettings: vi.fn(), stats: vi.fn(),
     startSession: vi.fn(), completeSession: vi.fn(), login: vi.fn(), register: vi.fn(),
+    grades: vi.fn(),
   },
   getToken: vi.fn(),
   setToken: vi.fn(),
@@ -189,5 +190,34 @@ describe("settings that change presentation", () => {
     // "Tríadas" rather than "Notas guía", which also prefixes the bass node.
     expect(await screen.findByRole("heading", { name: /Tríadas/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "▶ Toca el acorde" })).toBeInTheDocument();
+  });
+});
+
+describe("grades", () => {
+  it("is offered to members and reachable", async () => {
+    signedIn();
+    api.grades.mockResolvedValue({ grades: [] });
+    render(<App />);
+    await homeHeading();
+    await userEvent.click(screen.getByRole("button", { name: /Grades/ }));
+    expect(await screen.findByRole("heading", { name: "Grades" })).toBeInTheDocument();
+  });
+
+  it("is not offered to a guest, who has no server to read progress from", async () => {
+    localStorage.setItem("klaviearn.guest", "1");
+    render(<App />);
+    await homeHeading();
+    expect(screen.queryByRole("button", { name: /Grades/ })).not.toBeInTheDocument();
+  });
+
+  it("comes back home", async () => {
+    signedIn();
+    api.grades.mockResolvedValue({ grades: [] });
+    render(<App />);
+    await homeHeading();
+    await userEvent.click(screen.getByRole("button", { name: /Grades/ }));
+    await screen.findByRole("heading", { name: "Grades" });
+    await userEvent.click(screen.getByRole("button", { name: /Back/ }));
+    expect(await homeHeading()).toBeInTheDocument();
   });
 });

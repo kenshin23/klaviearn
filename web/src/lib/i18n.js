@@ -114,6 +114,20 @@ const STRINGS = {
     "▶ Match the pitch": "▶ Encuentra la nota",
     "▶ Play the pattern": "▶ Toca el patrón",
     "▶ Name the key": "▶ Nombra la tonalidad",
+    "🎯 Grades": "🎯 Niveles",
+    "Grades": "Niveles",
+    "Not started": "Sin empezar",
+    "Working on it": "En ello",
+    "Secure": "Seguro",
+    "Technique": "Técnica",
+    "Reading": "Lectura",
+    "Rhythm": "Ritmo",
+    "Ear": "Oído",
+    "Scales and arpeggios": "Escalas y arpegios",
+    "Pieces": "Piezas",
+    "Sight-reading": "Lectura a primera vista",
+    "Aural": "Audición",
+    "Generic levels, not any exam board's syllabus — correct them against whichever one you are working to.": "Niveles genéricos, no el temario de ningún conservatorio — ajústalos al que estés siguiendo.",
     "Which key is this?": "¿Qué tonalidad es esta?",
     "Nothing at the front — count again.": "No hay nada al principio — cuenta otra vez.",
     "Count again:": "Cuenta otra vez:",
@@ -267,6 +281,56 @@ const TECHNIQUE_ES = {
   "C major arpeggio, right hand": "Arpegio de Do mayor, mano derecha",
   "C major arpeggio, left hand": "Arpegio de Do mayor, mano izquierda",
 };
+// Grade titles, blurbs and requirement labels. The server speaks English
+// identifiers; a half-translated screen is worse than an untranslated one,
+// so test_parity checks every shipped label appears here.
+export const GRADE_ES = {
+  foundation: {
+    title: "Iniciación",
+    blurb: "Antes del primer grado: cinco dedos, una tonalidad y notas que reconoces al verlas.",
+  },
+  "grade-1": {
+    title: "Grado 1",
+    blurb: "Cinco tonalidades, ambas claves, una pieza a dos manos y oído para la diferencia.",
+  },
+};
+export const gradeText = grade =>
+  (lang === "es" && GRADE_ES[grade.id] ? GRADE_ES[grade.id] : grade);
+
+export const REQUIREMENT_ES = {
+  "C position, both hands": "Posición de Do, ambas manos",
+  "C major scale, hands separately": "Escala de Do mayor, manos separadas",
+  "Treble guide notes": "Notas guía en clave de Sol",
+  "Bass guide notes": "Notas guía en clave de Fa",
+  "Line or space": "Línea o espacio",
+  "Quarters, halves and wholes": "Negras, blancas y redondas",
+  "Match a pitch you hear": "Encuentra la nota que oyes",
+  "Scales: C, G, D, F major, hands separately":
+    "Escalas: Do, Sol, Re, Fa mayor, manos separadas",
+  "Scale: A harmonic minor, hands separately":
+    "Escala: La menor armónica, manos separadas",
+  "Arpeggios: C, G, D, F major, hands separately":
+    "Arpegios: Do, Sol, Re, Fa mayor, manos separadas",
+  "Arpeggio: A minor, hands separately": "Arpegio: La menor, manos separadas",
+  "Ode to Joy, hands together": "Himno a la Alegría, manos juntas",
+  "Mary Had a Little Lamb, hands together": "María tenía un corderito, manos juntas",
+  "The treble octave": "La octava en clave de Sol",
+  "The bass octave": "La octava en clave de Fa",
+  "Intervals by sight": "Intervalos a la vista",
+  "Key signatures to one sharp or flat": "Armaduras hasta un sostenido o bemol",
+  "Intervals by ear": "Intervalos de oído",
+  "Major or minor": "Mayor o menor",
+  "Play back a phrase": "Toca una frase de vuelta",
+};
+export const requirementLabel = en =>
+  (lang === "es" ? REQUIREMENT_ES[en] ?? en : en);
+
+const TRACK_ES = {
+  Reading: "Lectura", Rhythm: "Ritmo", Technique: "Técnica",
+  Ear: "Oído", Repertoire: "Repertorio",
+};
+export const trackName = en => (lang === "es" ? TRACK_ES[en] ?? en : en);
+
 export const techniqueName = en => (lang === "es" ? TECHNIQUE_ES[en] ?? en : en);
 
 // Key names follow the note-name setting: C major is Do mayor in solfège.

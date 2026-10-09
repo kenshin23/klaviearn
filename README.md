@@ -35,7 +35,7 @@ architecture, roadmap — is in [DESIGN.md](DESIGN.md).
 
 ## Status
 
-**Phases 1–9 built.** A FastAPI backend in [`server/`](server/) with
+**Phases 1–10 built.** A FastAPI backend in [`server/`](server/) with
 accounts, spaced repetition (SM-2 variant), per-item scaffold fading, XP and
 day streaks, and a per-answer attempt log. The React PWA in [`web/`](web/)
 works logged-in (server is the source of truth) or as an offline guest
@@ -69,7 +69,11 @@ well under tempo and speeds up as you get it. Pieces are authored data;
 MusicXML into that shape at build time.
 
 A stats dashboard shows your confusion matrix ("seeing C, you played D ×3")
-and per-item accuracy.
+and per-item accuracy. A **grades** view lays graded requirements over
+everything you have practised, so each one reads as not started, working on
+it, or secure. Those levels are generic and name no exam board — correct them
+against whichever syllabus you are actually following. The home screen groups
+its lessons under the five tracks.
 
 ```bash
 # API (Python 3.11 via asdf — see .tool-versions)
@@ -165,6 +169,6 @@ python3 -m http.server 8000 --directory phase0
 9. ~~**Phase 8** — repertoire: pieces, per-bar SRS, tempo ramp, hands together,
    MusicXML import~~ ✅
 10. ~~**Phase 9** — key signatures, multi-key scales and arpeggios~~ ✅
-11. **Next** — graded practice as a view over the tracks, more repertoire
-    through the importer, and grouping the twenty-two nodes by track before
-    the list gets unwieldy.
+11. ~~**Phase 10** — graded practice, and the home screen grouped by track~~ ✅
+12. **Next** — more repertoire through the importer, and a second octave for
+    the scales.

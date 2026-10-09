@@ -37,6 +37,7 @@ export const api = {
   completeSession: (node_id, drill, results) =>
     request("/sessions/complete", { method: "POST", body: { node_id, drill, results } }),
   stats: () => request("/stats"),
+  grades: () => request("/grades"),
   changePassword: (current, next) =>
     request("/me/password", { method: "PUT", body: { current, new: next } }),
 };

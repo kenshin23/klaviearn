@@ -1,7 +1,8 @@
 import { useState } from "react";
 import SettingsPanel from "../components/SettingsPanel.jsx";
 import PasswordForm from "../components/PasswordForm.jsx";
-import { nodeText, t } from "../lib/i18n.js";
+import { nodeText, t, trackName } from "../lib/i18n.js";
+import { TRACKS } from "../lib/notes.js";
 
 // `nodes` carries optional server stats (accuracy, dueCount, mastery);
 // guest mode passes the same shape with only accuracy filled in.
@@ -29,8 +30,67 @@ const DRILLS = {
   "ear-phrases": [["ear-phrase", "▶ Play it back", "primary"]],
 };
 
-export default function Home({ nodes, me, settings, onSettings, onStart, onStats, onLogout, onSignup }) {
+const ICONS = {
+  rhythm: "𝅘𝅥𝅮 ", intervals: "⤢ ", chords: "🎹 ", technique: "✋ ",
+  keys: "♯ ", piece: "🎼 ", grand: "𝄞𝄢 ",
+  "ear-pitch": "👂 ", "ear-intervals": "👂 ", "ear-chords": "👂 ", "ear-phrases": "👂 ",
+};
+
+const iconFor = node => ICONS[node.kind] ?? (node.clef === "bass" ? "𝄢 " : "𝄞 ");
+
+export default function Home({
+  nodes, me, settings, onSettings, onStart, onStats, onGrades, onLogout, onSignup,
+}) {
   const [showSettings, setShowSettings] = useState(false);
+
+  // Twenty-two nodes in one list is a lot to scroll past to reach the one you
+  // came for, so they sit under the five tracks the curriculum already has.
+  // Which tracks are folded away is a display preference like any other, and
+  // is kept with the rest of them.
+  const collapsed = settings.collapsedTracks ?? [];
+  // The updater form rather than a value: two toggles in one tick would both
+  // read this render's `settings` and the second would undo the first.
+  const toggleTrack = track =>
+    onSettings(prev => {
+      const folded = prev.collapsedTracks ?? [];
+      return {
+        ...prev,
+        collapsedTracks: folded.includes(track)
+          ? folded.filter(c => c !== track)
+          : [...folded, track],
+      };
+    });
+
+  const renderNode = node => (
+    <section className="card node" key={node.id}>
+      <div className="node-head">
+        <h2>
+          {iconFor(node)}
+          {nodeText(node).title}
+        </h2>
+        <span className="node-stats">
+          {node.dueCount > 0 && (
+            <span className="due" aria-label={`${node.dueCount} ${t("due for review")}`}>
+              {node.dueCount} {t(node.dueCount === 1 ? "due#one" : "due")}
+            </span>
+          )}
+          {node.accuracy != null && (
+            <span className="acc" aria-label={`Accuracy ${Math.round(node.accuracy * 100)} percent`}>
+              {Math.round(node.accuracy * 100)}%
+            </span>
+          )}
+        </span>
+      </div>
+      <p>{nodeText(node).blurb}</p>
+      <div className="row">
+        {DRILLS[node.kind ?? "notes"].map(([drill, label, cls]) => (
+          <button key={drill} className={`btn ${cls}`} onClick={() => onStart(node, drill)}>
+            {t(label)}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 
   return (
     <main className="screen">
@@ -47,48 +107,37 @@ export default function Home({ nodes, me, settings, onSettings, onStart, onStats
         )}
       </header>
 
-      <div className="nodes">
-        {nodes.map(node => (
-          <section className="card node" key={node.id}>
-            <div className="node-head">
-              <h2>
-                {node.kind === "rhythm" ? "𝅘𝅥𝅮 "
-                  : node.kind === "intervals" ? "⤢ "
-                  : node.kind === "chords" ? "🎹 "
-                  : node.kind?.startsWith("ear-") ? "👂 "
-                  : node.kind === "technique" ? "✋ "
-                  : node.kind === "keys" ? "♯ "
-                  : node.kind === "piece" ? "🎼 "
-                  : node.kind === "grand" ? "𝄞𝄢 "
-                  : node.clef === "bass" ? "𝄢 " : "𝄞 "}
-                {nodeText(node).title}
-              </h2>
-              <span className="node-stats">
-                {node.dueCount > 0 && (
-                  <span className="due" aria-label={`${node.dueCount} ${t("due for review")}`}>
-                    {node.dueCount} {t(node.dueCount === 1 ? "due#one" : "due")}
+      {TRACKS.map(([track, label]) => {
+        const inTrack = nodes.filter(n => n.track === track);
+        if (inTrack.length === 0) return null;
+        const due = inTrack.reduce((sum, n) => sum + (n.dueCount ?? 0), 0);
+        const folded = collapsed.includes(track);
+        return (
+          <section className="track" key={track}>
+            <button
+              className="track-head"
+              onClick={() => toggleTrack(track)}
+              aria-expanded={!folded}
+            >
+              <span className="track-name">{folded ? "▸" : "▾"} {trackName(label)}</span>
+              <span className="track-stats">
+                {due > 0 && (
+                  <span className="due" aria-label={`${due} ${t("due for review")}`}>
+                    {due} {t(due === 1 ? "due#one" : "due")}
                   </span>
                 )}
-                {node.accuracy != null && (
-                  <span className="acc" aria-label={`Accuracy ${Math.round(node.accuracy * 100)} percent`}>
-                    {Math.round(node.accuracy * 100)}%
-                  </span>
-                )}
+                <span className="track-count">{inTrack.length}</span>
               </span>
-            </div>
-            <p>{nodeText(node).blurb}</p>
-            <div className="row">
-              {DRILLS[node.kind ?? "notes"].map(([drill, label, cls]) => (
-                <button key={drill} className={`btn ${cls}`} onClick={() => onStart(node, drill)}>
-                  {t(label)}
-                </button>
-              ))}
-            </div>
+            </button>
+            {!folded && <div className="nodes">{inTrack.map(renderNode)}</div>}
           </section>
-        ))}
-      </div>
+        );
+      })}
 
       <div className="row">
+        {onGrades && (
+          <button className="btn quiet" onClick={onGrades}>{t("🎯 Grades")}</button>
+        )}
         {onStats && (
           <button className="btn quiet" onClick={onStats}>{t("📊 My stats")}</button>
         )}

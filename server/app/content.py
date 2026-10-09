@@ -374,6 +374,33 @@ SKILL_NODES = [
     },
 ]
 
+# The five tracks DESIGN §5 names. A node's track follows from its kind, so
+# there is nothing extra to keep in step when a node is added.
+TRACKS = [
+    ("reading", "Reading"),
+    ("rhythm", "Rhythm"),
+    ("technique", "Technique"),
+    ("ear", "Ear"),
+    ("repertoire", "Repertoire"),
+]
+
+TRACK_BY_KIND = {
+    "notes": "reading", "intervals": "reading", "grand": "reading",
+    "chords": "reading", "keys": "reading",
+    "rhythm": "rhythm",
+    "technique": "technique",
+    "ear-pitch": "ear", "ear-intervals": "ear", "ear-chords": "ear", "ear-phrases": "ear",
+    "piece": "repertoire",
+}
+
+
+def track_of(node: dict) -> str:
+    return TRACK_BY_KIND[node.get("kind", "notes")]
+
+
+for _node in SKILL_NODES:
+    _node["track"] = track_of(_node)
+
 NODE_BY_ID = {n["id"]: n for n in SKILL_NODES}
 
 

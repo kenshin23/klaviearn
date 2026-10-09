@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import Auth from "./screens/Auth.jsx";
 import Home from "./screens/Home.jsx";
 import Stats from "./screens/Stats.jsx";
+import Grades from "./screens/Grades.jsx";
 
 // Session pulls in VexFlow (~1MB) — load it only when practice starts.
 const Session = lazy(() => import("./screens/Session.jsx"));
@@ -23,6 +24,8 @@ export default function App() {
   const [screen, setScreen] = useState({ name: "home" });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const localRef = useRef(null); // guest-mode persistent state
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   // Locale is module state read by t()/noteLabel(); set it before children render.
   setLocale(settings.language, settings.noteNames);
@@ -64,12 +67,18 @@ export default function App() {
     setAuth({ status: "online" });
   }
 
+  // Accepts a value or an updater. Two settings changes in the same tick
+  // both read the `settings` prop, so the second would overwrite the first
+  // with a value computed from stale state; the ref is what the updater form
+  // reads instead.
   function updateSettings(next) {
-    setSettings(next);
+    const value = typeof next === "function" ? next(settingsRef.current) : next;
+    settingsRef.current = value;
+    setSettings(value);
     if (auth.status === "online") {
-      api.saveSettings(next).catch(() => {});
+      api.saveSettings(value).catch(() => {});
     } else {
-      localRef.current.settings = next;
+      localRef.current.settings = value;
       saveState(localRef.current);
     }
   }
@@ -117,6 +126,10 @@ export default function App() {
     return <Stats onHome={() => setScreen({ name: "home" })} />;
   }
 
+  if (screen.name === "grades") {
+    return <Grades onHome={() => setScreen({ name: "home" })} />;
+  }
+
   if (screen.name === "session") {
     return (
       <Suspense fallback={<main className="screen"><p className="status">…</p></main>}>
@@ -144,6 +157,7 @@ export default function App() {
       onSettings={updateSettings}
       onStart={startSession}
       onStats={online ? () => setScreen({ name: "stats" }) : null}
+      onGrades={online ? () => setScreen({ name: "grades" }) : null}
       onLogout={online ? () => { setToken(null); setMe(null); setTree(null); setAuth({ status: "choose" }); } : null}
       onSignup={!online ? () => setAuth({ status: "choose" }) : null}
     />

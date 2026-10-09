@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   strictOctave: false, // off: any octave counts (kind to mic detection)
   staffSize: "large",  // medium | large | huge
   micSensitivity: "high", // low | normal | high — quiet travel pianos need high
+  collapsedTracks: [],    // which track sections are folded away on the home screen
   ...browserDefaults(), // language: en|es, noteNames: letters|solfege
 };
 

@@ -335,6 +335,29 @@ export const SKILL_NODES = [
   },
 ];
 
+// The five tracks DESIGN §5 names. A node's track follows from its kind, so
+// there is nothing extra to keep in step when a node is added.
+export const TRACKS = [
+  ["reading", "Reading"],
+  ["rhythm", "Rhythm"],
+  ["technique", "Technique"],
+  ["ear", "Ear"],
+  ["repertoire", "Repertoire"],
+];
+
+const TRACK_BY_KIND = {
+  notes: "reading", intervals: "reading", grand: "reading",
+  chords: "reading", keys: "reading",
+  rhythm: "rhythm",
+  technique: "technique",
+  "ear-pitch": "ear", "ear-intervals": "ear", "ear-chords": "ear", "ear-phrases": "ear",
+  piece: "repertoire",
+};
+
+export const trackOf = node => TRACK_BY_KIND[node.kind ?? "notes"];
+
+for (const node of SKILL_NODES) node.track = trackOf(node);
+
 export const INTERVAL_NAMES = { 2: "2nd", 3: "3rd", 4: "4th", 5: "5th" };
 
 export const itemKey = (clef, midi) => `${clef}:${midi}`;

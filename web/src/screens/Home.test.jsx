@@ -151,3 +151,99 @@ describe("Spanish", () => {
     expect(screen.getByRole("button", { name: "▶ Toca el acorde" })).toBeInTheDocument();
   });
 });
+
+describe("grouped by track", () => {
+  const sections = () =>
+    [...document.querySelectorAll(".track")].map(s => ({
+      name: s.querySelector(".track-name").textContent.replace(/^[▸▾]\s*/, ""),
+      count: Number(s.querySelector(".track-count").textContent),
+      nodes: s.querySelectorAll(".node").length,
+      folded: s.querySelector(".track-head").getAttribute("aria-expanded") === "false",
+    }));
+
+  it("shows the five tracks the curriculum names", () => {
+    renderHome();
+    expect(sections().map(s => s.name))
+      .toEqual(["Reading", "Rhythm", "Technique", "Ear", "Repertoire"]);
+  });
+
+  it("puts every node in exactly one track", () => {
+    renderHome();
+    const shown = sections().reduce((sum, s) => sum + s.nodes, 0);
+    expect(shown).toBe(SKILL_NODES.length);
+    expect(document.querySelectorAll(".node")).toHaveLength(SKILL_NODES.length);
+  });
+
+  it("counts the nodes in each track", () => {
+    renderHome();
+    for (const s of sections()) expect(s.count, s.name).toBe(s.nodes);
+  });
+
+  it("sums the due items across a track", () => {
+    const nodes = allNodes().map(n =>
+      n.track === "ear" ? { ...n, dueCount: 3 } : n);
+    renderHome({ nodes });
+    const ear = [...document.querySelectorAll(".track")]
+      .find(s => s.textContent.includes("Ear"));
+    expect(ear.querySelector(".track-head .due").textContent).toBe("12 due");
+  });
+
+  it("shows no due badge on a track with nothing due", () => {
+    renderHome();
+    for (const section of document.querySelectorAll(".track-head")) {
+      expect(section.querySelector(".due")).toBeNull();
+    }
+  });
+
+  // onSettings takes an updater so two toggles in one tick cannot lose one.
+  const settingsAfterClick = (trackLabel, from = SETTINGS) => {
+    const { onSettings } = renderHome({ settings: from });
+    fireEvent.click([...document.querySelectorAll(".track-head")]
+      .find(h => h.textContent.includes(trackLabel)));
+    const updater = onSettings.mock.calls[0][0];
+    expect(typeof updater).toBe("function");
+    return updater(from);
+  };
+
+  it("folds a track away when asked", () => {
+    expect(settingsAfterClick("Reading").collapsedTracks).toEqual(["reading"]);
+  });
+
+  it("does not lose a fold when two land in the same tick", () => {
+    const { onSettings } = renderHome();
+    const heads = [...document.querySelectorAll(".track-head")];
+    fireEvent.click(heads.find(h => h.textContent.includes("Reading")));
+    fireEvent.click(heads.find(h => h.textContent.includes("Ear")));
+
+    // Apply both updaters in order, as the app's settings ref does.
+    const applied = onSettings.mock.calls.reduce((acc, [u]) => u(acc), SETTINGS);
+    expect(applied.collapsedTracks.sort()).toEqual(["ear", "reading"]);
+  });
+
+  it("hides a folded track's nodes but keeps its heading", () => {
+    renderHome({ settings: { ...SETTINGS, collapsedTracks: ["reading", "ear"] } });
+    const byName = Object.fromEntries(sections().map(s => [s.name, s]));
+    expect(byName.Reading.folded).toBe(true);
+    expect(byName.Reading.nodes).toBe(0);
+    expect(byName.Rhythm.folded).toBe(false);
+    expect(byName.Rhythm.nodes).toBeGreaterThan(0);
+  });
+
+  it("unfolds a folded track", () => {
+    const from = { ...SETTINGS, collapsedTracks: ["rhythm"] };
+    expect(settingsAfterClick("Rhythm", from).collapsedTracks).toEqual([]);
+  });
+
+  it("still starts a drill from inside a track", () => {
+    const { onStart } = renderHome();
+    fireEvent.click(screen.getByRole("button", { name: "▶ Play the chord" }));
+    expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ id: "chords" }), "chord");
+  });
+
+  it("translates the track names", () => {
+    setLocale("es", "solfege");
+    renderHome({ settings: { ...SETTINGS, language: "es", noteNames: "solfege" } });
+    expect(sections().map(s => s.name))
+      .toEqual(["Lectura", "Ritmo", "Técnica", "Oído", "Repertorio"]);
+  });
+});

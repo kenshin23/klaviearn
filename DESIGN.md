@@ -428,13 +428,29 @@ fifteen-note scale on one line rendered at about a third the height of a
 single flashed note, which is the wrong trade in an app whose premise is
 large notation.
 
-**Phase 10 — Graded practice.** Not built. A grade is data plus a view: a
-list of requirements, and a readiness screen colouring each one from SRS
-state already recorded. The four components of a piano exam are already the
-app's four tracks, so this populates existing machinery rather than adding
-any. Requirements are facts and encodable; set pieces are not ours to ship
-(the MusicXML importer is the answer there); and nothing should imply
-endorsement by any exam board.
+**Phase 10 — Graded practice.** *Built.* A grade is data plus a view and
+adds no machinery: `server/app/grades.py` is a list of requirements, each
+naming SRS items that already exist, and `GET /grades` reads the learner's
+recorded state back against them. A requirement reads as one of three words —
+not started, working on it, secure — rather than a percentage, because the
+question it answers is "what should I practise next", not "how close is this
+number to another number". Secure needs both accuracy and a withdrawn
+scaffold: right every time with every training wheel on is not the same as
+knowing it.
+
+The levels shipped are **generic**, not any exam board's syllabus.
+Requirements are facts and perfectly encodable, but they change between
+syllabus cycles, so these are a shape to correct against whichever syllabus a
+learner is actually working to. Set pieces are not shipped and cannot be —
+an exam board's editions carry copyrighted fingering and editorial marks, and
+much of a modern list is in copyright outright — so the importer is the route
+and the app distributes nothing. Nothing claims alignment with, or
+endorsement by, any exam board, and a test asserts no board is named
+anywhere on the screen.
+
+The home screen groups its nodes under the five tracks from §5, with a due
+count per track and folding kept with the other display settings. Twenty-two
+cards in one list was too many to scroll past to reach the one you came for.
 
 ## 9. Open questions
 

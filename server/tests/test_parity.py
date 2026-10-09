@@ -14,6 +14,7 @@ import subprocess
 import pytest
 
 from app.content import (
+    NODE_BY_ID,
     NOTES,
     RHYTHM_PATTERNS,
     SKILL_NODES,
@@ -23,21 +24,27 @@ from app.content import (
     node_items,
     note_spec,
 )
+from app.grades import GRADES
 from app.keys import KEYS
 from app.pieces import PIECES, TEMPO_STEPS
 
 WEB = pathlib.Path(__file__).resolve().parents[2] / "web"
 NOTES_JS = WEB / "src" / "lib" / "notes.js"
+I18N_JS = WEB / "src" / "lib" / "i18n.js"
 
 # Enough MIDI numbers to cover naturals, sharps, and octave boundaries.
 SPELLING_PROBES = [21, 48, 59, 60, 61, 62, 66, 67, 68, 71, 72, 76, 84, 108]
 
 DUMP_JS = f"""
-import(({json.dumps(str(NOTES_JS))})).then(m => {{
+Promise.all([
+  import(({json.dumps(str(NOTES_JS))})),
+  import(({json.dumps(str(I18N_JS))})),
+]).then(([m, i18n]) => {{
   const nodes = m.SKILL_NODES.map(n => ({{
     id: n.id, kind: n.kind ?? "notes", title: n.title, blurb: n.blurb,
     clef: n.clef ?? null, midis: n.midis ?? null, patterns: n.patterns ?? null,
     sizes: n.sizes ?? null, triads: n.triads ?? null, piece: n.piece ?? null,
+    track: n.track ?? null,
     itemKeys: m.nodeItemKeys(n),
   }}));
   const probes = {json.dumps(SPELLING_PROBES)};
@@ -48,6 +55,8 @@ import(({json.dumps(str(NOTES_JS))})).then(m => {{
     spellings: Object.fromEntries(probes.map(x => [x, m.noteSpec(x)])),
     pieces: m.PIECES,
     keys: m.KEYS,
+    gradeEs: i18n.GRADE_ES,
+    requirementEs: i18n.REQUIREMENT_ES,
     technique: m.TECHNIQUE_PATTERNS,
     tempoSteps: m.TEMPO_STEPS,
     chords: Object.fromEntries(
@@ -227,3 +236,39 @@ def test_every_pattern_has_the_same_notes_and_fingering(js):
     for pid, pattern in TECHNIQUE_PATTERNS.items():
         for field in ("name", "hand", "clef", "key", "midis", "fingers"):
             assert js["technique"][pid][field] == pattern[field], f"{pid}.{field}"
+
+
+def test_every_node_sits_on_the_same_track(js):
+    for node in js["nodes"]:
+        assert node["track"] == NODE_BY_ID[node["id"]]["track"], node["id"]
+
+
+# --- Grades -------------------------------------------------------------------
+
+def test_every_grade_is_translated(js):
+    for grade in GRADES:
+        assert grade["id"] in js["gradeEs"], grade["id"]
+        assert js["gradeEs"][grade["id"]]["title"]
+        assert js["gradeEs"][grade["id"]]["blurb"]
+
+
+def test_every_requirement_label_is_translated(js):
+    """A screen in two languages at once is worse than one in neither."""
+    labels = {
+        requirement["label"]
+        for grade in GRADES
+        for section in grade["sections"]
+        for requirement in section["requirements"]
+    }
+    missing = labels - set(js["requirementEs"])
+    assert missing == set(), f"requirements with no Spanish: {sorted(missing)}"
+
+
+def test_no_stale_translations_left_behind(js):
+    labels = {
+        requirement["label"]
+        for grade in GRADES
+        for section in grade["sections"]
+        for requirement in section["requirements"]
+    }
+    assert set(js["requirementEs"]) - labels == set()

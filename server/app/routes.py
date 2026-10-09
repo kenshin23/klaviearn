@@ -10,6 +10,7 @@ from . import srs
 from .auth import current_user, make_token, rate_limit
 from .content import NODE_BY_ID, SKILL_NODES, node_items
 from .db import get_db
+from .grades import GRADES, readiness
 from .models import Attempt, ItemSRS, SessionRecord, utcnow
 
 router = APIRouter(tags=["app"])
@@ -107,6 +108,37 @@ def tree(user=Depends(current_user), db=Depends(get_db)):
             }
         )
     return {"nodes": nodes}
+
+
+@router.get("/grades")
+def grades(user=Depends(current_user), db=Depends(get_db)):
+    """Every grade with a readiness overlay, the way /tree overlays the nodes.
+
+    No new state: this is the SRS rows the learner already has, read back
+    against a list of requirements.
+    """
+    states = {
+        s.item_key: s
+        for s in db.scalars(select(ItemSRS).where(ItemSRS.user_id == user.id))
+    }
+    return {
+        "grades": [
+            {
+                **grade,
+                "sections": [
+                    {
+                        **section,
+                        "requirements": [
+                            {**requirement, **readiness(requirement["items"], states)}
+                            for requirement in section["requirements"]
+                        ],
+                    }
+                    for section in grade["sections"]
+                ],
+            }
+            for grade in GRADES
+        ]
+    }
 
 
 @router.get("/stats")
