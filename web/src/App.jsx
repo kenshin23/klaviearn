@@ -16,14 +16,31 @@ import { setLocale } from "./lib/i18n.js";
 
 const GUEST_KEY = "klaviearn.guest";
 
+// Guest progress lives in a mutable local store, so the accuracies the home
+// screen shows are derived and published deliberately. This is the same shape
+// the online branch gets back from api.tree().
+const nodesFor = local =>
+  SKILL_NODES.map(n => ({ ...n, accuracy: nodeAccuracy(local, n) }));
+
+// Which of the three ways in applies is settled before the first render: the
+// token and the guest flag are both synchronous reads, so there is nothing
+// here to wait for and nothing to resolve in an effect.
+function bootstrap() {
+  if (getToken()) return { status: "loading", local: null };
+  if (localStorage.getItem(GUEST_KEY)) return { status: "guest", local: loadState() };
+  return { status: "choose", local: null };
+}
+
 export default function App() {
+  const [boot] = useState(bootstrap);
   // auth.status: loading | choose | guest | online
-  const [auth, setAuth] = useState({ status: "loading" });
+  const [auth, setAuth] = useState({ status: boot.status });
   const [me, setMe] = useState(null);
   const [tree, setTree] = useState(null);
   const [screen, setScreen] = useState({ name: "home" });
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const localRef = useRef(null); // guest-mode persistent state
+  const [settings, setSettings] = useState(boot.local?.settings ?? DEFAULT_SETTINGS);
+  const localRef = useRef(boot.local); // guest-mode persistent state
+  const [guestNodes, setGuestNodes] = useState(() => boot.local && nodesFor(boot.local));
   const settingsRef = useRef(settings);
   // Mirrors `settings` for updateSettings' updater form. Written in a layout
   // effect rather than during render: React is free to throw a render away,
@@ -43,29 +60,27 @@ export default function App() {
     localStorage.setItem(GUEST_KEY, "1");
     localRef.current = loadState();
     setSettings(localRef.current.settings);
+    setGuestNodes(nodesFor(localRef.current));
     setAuth({ status: "guest" });
   }
 
+  // Only the token path has anything to wait for; bootstrap() settled the
+  // other two above.
   useEffect(() => {
-    if (getToken()) {
-      Promise.all([api.me(), api.tree()])
-        .then(([m, t]) => {
-          setMe(m);
-          setTree(t.nodes);
-          // Server settings win where saved, but presentation defaults
-          // (language, note names) come from the browser until then.
-          setSettings({ ...DEFAULT_SETTINGS, ...m.settings });
-          setAuth({ status: "online" });
-        })
-        .catch(() => {
-          setToken(null);
-          setAuth({ status: "choose" });
-        });
-    } else if (localStorage.getItem(GUEST_KEY)) {
-      enterGuest();
-    } else {
-      setAuth({ status: "choose" });
-    }
+    if (!getToken()) return;
+    Promise.all([api.me(), api.tree()])
+      .then(([m, t]) => {
+        setMe(m);
+        setTree(t.nodes);
+        // Server settings win where saved, but presentation defaults
+        // (language, note names) come from the browser until then.
+        setSettings({ ...DEFAULT_SETTINGS, ...m.settings });
+        setAuth({ status: "online" });
+      })
+      .catch(() => {
+        setToken(null);
+        setAuth({ status: "choose" });
+      });
   }, []);
 
   async function refreshOnline() {
@@ -120,6 +135,7 @@ export default function App() {
     for (const r of results) recordAnswer(localRef.current, r.item, r.hit);
     recordSession(localRef.current, { nodeId: node.id, drill, ok, total: results.length });
     saveState(localRef.current);
+    setGuestNodes(nodesFor(localRef.current)); // the badges move because this changed
     return null;
   }
 
@@ -154,9 +170,7 @@ export default function App() {
   }
 
   const online = auth.status === "online";
-  const nodes = online
-    ? tree
-    : SKILL_NODES.map(n => ({ ...n, accuracy: nodeAccuracy(localRef.current, n) }));
+  const nodes = online ? tree : guestNodes;
 
   return (
     <Home

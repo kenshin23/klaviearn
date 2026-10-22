@@ -35,12 +35,20 @@ function scaffoldLevel(settings, exercise) {
 
 const scaffoldFlags = level => ({ letters: level === 0, colors: level <= 1, fingers: level <= 1 });
 
+const FRESH_PHRASE = { idx: 0, misses: {} };
+const FRESH_CHORD = { played: [], pcOnly: false };
+
 const isEarDrill = exercise => Boolean(exercise?.drill?.startsWith("ear-"));
 const isPieceDrill = exercise => Boolean(exercise?.drill?.startsWith("piece-"));
 
 // The exercise state machine: listen → feedback → (next | done).
 // `results` is one entry per SRS item (a phrase contributes several);
 // `exDots` is one boolean per exercise for the progress dots.
+//
+// `phrase` and `chord` are per-exercise too, so they live here with the rest
+// of it. Held outside, each needed an effect to clear it when the exercise
+// changed — two more places that had to remember what "a new exercise" means,
+// when `advance` below already says it once.
 function reducer(state, action) {
   switch (action.type) {
     case "wrong":
@@ -58,10 +66,32 @@ function reducer(state, action) {
         exDots: [...state.exDots, action.entries.every(e => e.hit)],
         message: action.message,
       };
+    case "phrase-advance":
+      return { ...state, phrase: { ...state.phrase, idx: state.phrase.idx + 1 } };
+    case "phrase-miss": {
+      // The spread goes after the new key so the FIRST wrong note on a step
+      // is the one remembered: that is the note that cost the item its hit.
+      const { idx, misses } = state.phrase;
+      return {
+        ...state,
+        phrase: { idx, misses: { [idx]: misses[idx] ?? action.played, ...misses } },
+      };
+    }
+    case "chord":
+      return { ...state, chord: action.chord };
     case "advance": {
       const idx = state.idx + 1;
       if (idx >= state.exercises.length) return { ...state, phase: "done" };
-      return { ...state, idx, phase: "listen", firstTry: true, wrongPlayed: null, message: null };
+      return {
+        ...state,
+        idx,
+        phase: "listen",
+        firstTry: true,
+        wrongPlayed: null,
+        message: null,
+        phrase: FRESH_PHRASE,
+        chord: FRESH_CHORD,
+      };
     }
     default:
       return state;
@@ -78,26 +108,28 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     results: [],
     exDots: [],
     message: null,
+    phrase: FRESH_PHRASE,
+    chord: FRESH_CHORD,
   });
   const [mic, setMic] = useState({ status: "idle", hearing: null });
   const [midiDevices, setMidiDevices] = useState([]);
   const [reward, setReward] = useState(null);
-  const [phrase, setPhrase] = useState({ idx: 0, misses: {} });
-  // Notes collected so far for the current chord. The ref is the source of
-  // truth — MIDI can deliver several note-ons before React re-renders, and
-  // reading a half-updated set back through live.current would drop notes.
-  // `pcOnly` sticks once a note arrives from an input that can't express an
-  // octave (on-screen keys), so the whole chord compares by pitch class.
-  const [chord, setChord] = useState({ played: [], pcOnly: false });
-  const chordRef = useRef({ played: [], pcOnly: false });
-  const setChordBoth = next => { chordRef.current = next; setChord(next); };
-  const clearChord = () => setChordBoth({ played: [], pcOnly: false });
+  // Notes collected so far for the current chord are mirrored in a ref,
+  // which is the source of truth while one is being built — MIDI can deliver
+  // several note-ons before React re-renders, and reading a half-updated set
+  // back through live.current would drop notes. `pcOnly` sticks once a note
+  // arrives from an input that can't express an octave (on-screen keys), so
+  // the whole chord compares by pitch class.
+  const chordRef = useRef(FRESH_CHORD);
+  const setChordBoth = next => { chordRef.current = next; dispatch({ type: "chord", chord: next }); };
+  const clearChord = () => setChordBoth(FRESH_CHORD);
   const micStopRef = useRef(null);
   const tapRef = useRef(null);
 
   const exercise = state.exercises[state.idx];
-  useEffect(() => setPhrase({ idx: 0, misses: {} }), [state.idx]);
-  useEffect(clearChord, [state.idx]);
+  const { phrase, chord } = state;
+  // The reducer resets its own copy on advance; the mirror has to be told.
+  useEffect(() => { chordRef.current = FRESH_CHORD; }, [state.idx]);
 
   // Input handlers read live state through this ref, so the mic/MIDI
   // listeners (wired once) never act on a stale exercise.
@@ -108,8 +140,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   // is always in place before an input can arrive.
   const live = useRef(null);
   useLayoutEffect(() => {
-    live.current = { state, settings, exercise, phrase };
-  }, [state, settings, exercise, phrase]);
+    live.current = { state, settings, exercise };
+  }, [state, settings, exercise]);
 
   function matches(midi, target, pitchClassOnly) {
     return pitchClassOnly || !live.current.settings.strictOctave
@@ -157,7 +189,8 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
   }
 
   function answerNote(midi, { pitchClassOnly = false } = {}) {
-    const { state, exercise, phrase } = live.current;
+    const { state, exercise } = live.current;
+    const { phrase } = state;
     if (state.phase !== "listen") return;
 
     if (exercise.drill === "chord") {
@@ -189,11 +222,13 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
           dispatch({ type: "correct", entries, message: t("Phrase complete!") });
         } else {
           tick();
-          setPhrase(p => ({ ...p, idx: p.idx + 1 }));
+          dispatch({ type: "phrase-advance" });
         }
       } else {
         chimeWrong();
-        setPhrase(p => ({ ...p, misses: { [p.idx]: p.misses[p.idx] ?? midi, ...p.misses } }));
+        // Two dispatches, batched into one render: one records which step of
+        // the phrase fell over, the other is the ordinary wrong-answer path.
+        dispatch({ type: "phrase-miss", played: midi });
         dispatch({ type: "wrong", played: midi, message: `${t("You played")} ${noteName(midi)}` });
       }
       return;

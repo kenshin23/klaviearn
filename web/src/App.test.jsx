@@ -105,6 +105,23 @@ describe("guest mode", () => {
     expect(await homeHeading()).toBeInTheDocument();
   });
 
+  // Guest accuracy is derived from the local store into state rather than
+  // read off the store during render, so this is the path that puts a badge
+  // on the card at all.
+  it("shows accuracy badges from progress saved locally", async () => {
+    localStorage.setItem("klaviearn.v1", JSON.stringify({
+      noteStats: { "treble:60": { seen: 3, correct: 3, streak: 3 },
+                   "treble:67": { seen: 1, correct: 0, streak: 0 } },
+      sessions: [],
+      settings: {},
+    }));
+
+    render(<App />);
+    const card = (await homeHeading()).closest(".node");
+    // Three of four across the node's two guide notes.
+    expect(card.querySelector(".acc")).toHaveTextContent("75%");
+  });
+
   it("persists a settings change", async () => {
     render(<App />);
     await homeHeading();
