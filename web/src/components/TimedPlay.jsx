@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { audioContext, click, tone } from "../lib/audio.js";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { audioContext, click, perfTimeFor, tone } from "../lib/audio.js";
 import { midiToFreq } from "../lib/notes.js";
 import { score } from "../lib/evaluator.js";
 import { noteName, t } from "../lib/i18n.js";
@@ -46,12 +46,6 @@ export default function TimedPlay({
     timers.current = [];
   };
   useEffect(() => () => clearTimers(), []);
-  useEffect(() => {
-    clearTimers();
-    take.current = null;
-    setPhase("idle");
-    setResult(null);
-  }, [expected]);
 
   /** Sound the exercise so you know what you are aiming at. */
   function hearIt() {
@@ -79,9 +73,9 @@ export default function TimedPlay({
     const audioT0 = ctx.currentTime + 0.25;
     for (let i = 0; i < COUNT_IN + totalBeats; i++) click(audioT0 + i * spb, i % 4 === 0);
 
-    // Map the audio clock onto performance.now() so input timestamps compare
-    // against the clicks the player actually hears.
-    const perfT0 = performance.now() + (audioT0 - ctx.currentTime) * 1000;
+    // Input timestamps have to compare against the clicks the player hears,
+    // not against the audio clock the clicks were scheduled on.
+    const perfT0 = perfTimeFor(ctx, audioT0);
     take.current = { perfT0, played: [] };
     setPhase("counting");
     setResult(null);
@@ -101,7 +95,14 @@ export default function TimedPlay({
     // A little before the first beat still counts: people anticipate.
     if (at > -0.5) current.played.push({ at, midi });
   }
-  registerInput(record);
+
+  // Handing the parent a callback is a side effect, so it belongs after the
+  // render rather than in it. No dependency array: the parent passes a fresh
+  // callback every render, and `record` closes over this render's tempo, so
+  // re-registering each time is the point.
+  useLayoutEffect(() => {
+    registerInput(record);
+  });
 
   function finish() {
     const played = take.current?.played ?? [];

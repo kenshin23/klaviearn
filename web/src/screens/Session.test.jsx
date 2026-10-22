@@ -779,6 +779,22 @@ describe("the verdicts stay on screen", () => {
     expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
   });
 
+  // The other half of the same contract. Verdicts have to persist through
+  // the re-render that scoring causes, and then NOT persist into the next
+  // exercise. That used to be TimedPlay resetting itself whenever `expected`
+  // changed identity — which is exactly what made the churn above so easy to
+  // trip over. It is a key on TimedPlay now, so the next exercise simply gets
+  // a new one; remove that key and the verdicts follow the learner forward.
+  it("do not follow the session into the next exercise", () => {
+    renderSession([technique("arp:C:rh"), technique("scale:C:rh")]);
+    take(techniqueSpec("arp:C:rh").midis);
+    expect(document.querySelectorAll(".verdict").length).toBeGreaterThan(0);
+
+    advance();
+    expect(screen.getByTestId("technique-staff")).toHaveAttribute("data-pattern", "scale:C:rh");
+    expect(document.querySelectorAll(".verdict")).toHaveLength(0);
+  });
+
   it("survives for the rhythm drill", () => {
     renderSession([{
       item: "rhythm:r-quarters", drill: "rhythm", level: 0,

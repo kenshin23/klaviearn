@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import PassageStaff, { vexDuration } from "./PassageStaff.jsx";
+import PassageStaff from "./PassageStaff.jsx";
 import { PIECES, pieceItems } from "../lib/pieces.js";
 import { LETTER_COLORS } from "../lib/notes.js";
 import {
@@ -12,19 +12,6 @@ const draw = (pieceId, n, hands = ["rh", "lh"], showFingers = false) =>
   render(
     <PassageStaff exercise={barOf(pieceId, n)} hands={hands} showFingers={showFingers} />,
   ).container;
-
-describe("beats to notation", () => {
-  it.each([
-    [4, "w", 0], [3, "h", 1], [2, "h", 0], [1.5, "q", 1],
-    [1, "q", 0], [0.5, "8", 0], [0.25, "16", 0],
-  ])("draws %s beats as %s with %i dots", (beats, duration, dots) => {
-    expect(vexDuration(beats)).toEqual({ duration, dots });
-  });
-
-  it("falls back to a quarter rather than throwing on an odd value", () => {
-    expect(vexDuration(1.234)).toEqual({ duration: "q", dots: 0 });
-  });
-});
 
 describe("the bar", () => {
   it("braces two staves together", () => {

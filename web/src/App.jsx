@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Auth from "./screens/Auth.jsx";
 import Home from "./screens/Home.jsx";
 import Stats from "./screens/Stats.jsx";
@@ -25,10 +25,26 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const localRef = useRef(null); // guest-mode persistent state
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  // Mirrors `settings` for updateSettings' updater form. Written in a layout
+  // effect rather than during render: React is free to throw a render away,
+  // but a ref written during one keeps the value anyway. A layout effect
+  // still lands before anything can handle an event.
+  useLayoutEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // Locale is module state read by t()/noteLabel(); set it before children render.
   setLocale(settings.language, settings.noteNames);
+
+  // Declared above the effect that calls it, not hoisted into it from below:
+  // reaching backwards for a function means the call cannot see later
+  // changes to what that function closes over.
+  function enterGuest() {
+    localStorage.setItem(GUEST_KEY, "1");
+    localRef.current = loadState();
+    setSettings(localRef.current.settings);
+    setAuth({ status: "guest" });
+  }
 
   useEffect(() => {
     if (getToken()) {
@@ -51,13 +67,6 @@ export default function App() {
       setAuth({ status: "choose" });
     }
   }, []);
-
-  function enterGuest() {
-    localStorage.setItem(GUEST_KEY, "1");
-    localRef.current = loadState();
-    setSettings(localRef.current.settings);
-    setAuth({ status: "guest" });
-  }
 
   async function refreshOnline() {
     const [m, t] = await Promise.all([api.me(), api.tree()]);

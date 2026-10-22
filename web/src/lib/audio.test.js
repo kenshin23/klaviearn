@@ -1,5 +1,6 @@
 import {
-  audioContext, chimeCorrect, chimeWrong, click, playChord, playMidi, playPlan, tick, tone,
+  audioContext, chimeCorrect, chimeWrong, click, perfTimeFor, playChord, playMidi,
+  playPlan, tick, tone,
 } from "./audio.js";
 
 /** Count how many oscillators a call schedules, and at what frequencies. */
@@ -113,5 +114,26 @@ describe("waking a suspended audio context", () => {
     vi.spyOn(ctx, "resume").mockRejectedValue(new Error("blocked"));
     expect(() => playPlan([{ midis: [60], at: 0 }])).not.toThrow();
     ctx.state = "running";
+  });
+});
+
+describe("mapping the audio clock onto performance.now()", () => {
+  it("puts a time already due at the present moment", () => {
+    vi.spyOn(performance, "now").mockReturnValue(5000);
+    expect(perfTimeFor({ currentTime: 2 }, 2)).toBe(5000);
+    vi.restoreAllMocks();
+  });
+
+  it("converts the lead time to milliseconds", () => {
+    vi.spyOn(performance, "now").mockReturnValue(5000);
+    // a quarter of a second ahead on the audio clock
+    expect(perfTimeFor({ currentTime: 2 }, 2.25)).toBe(5250);
+    vi.restoreAllMocks();
+  });
+
+  it("goes backwards for a time the audio clock has already passed", () => {
+    vi.spyOn(performance, "now").mockReturnValue(5000);
+    expect(perfTimeFor({ currentTime: 2 }, 1.5)).toBe(4500);
+    vi.restoreAllMocks();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import Staff from "../components/Staff.jsx";
 import GrandStaff from "../components/GrandStaff.jsx";
 import IntervalStaff from "../components/IntervalStaff.jsx";
@@ -101,8 +101,15 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
 
   // Input handlers read live state through this ref, so the mic/MIDI
   // listeners (wired once) never act on a stale exercise.
+  //
+  // A layout effect rather than a write during render, which React may
+  // discard. Every read below sits inside a handler, and layout effects run
+  // before the passive effects that register the listeners, so the snapshot
+  // is always in place before an input can arrive.
   const live = useRef(null);
-  live.current = { state, settings, exercise, phrase };
+  useLayoutEffect(() => {
+    live.current = { state, settings, exercise, phrase };
+  }, [state, settings, exercise, phrase]);
 
   function matches(midi, target, pitchClassOnly) {
     return pitchClassOnly || !live.current.settings.strictOctave
@@ -315,10 +322,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     }
   }
 
-  // Held stable across renders on purpose. TimedPlay resets its scored take
-  // when `expected` changes identity, and building this inline meant every
-  // re-render — including the one scoring itself triggers — wiped the per-note
-  // verdicts before they could be read.
+  // Held stable across renders so the expectation is not rebuilt on every
+  // keystroke. It used to matter far more than that: TimedPlay reset itself
+  // whenever `expected` changed identity, so building this inline wiped the
+  // per-note verdicts before they could be read. TimedPlay is now keyed by
+  // exercise instead, which cannot be fooled that way.
   const timedExpected = useMemo(() => {
     if (exercise.drill === "rhythm") return expectTaps(exercise.durations);
     if (exercise.drill === "technique" || exercise.drill === "phrase-timed") {
@@ -352,6 +360,16 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     Promise.resolve(onFinish(state.results)).then(setReward).catch(() => setReward(null));
   }, [state.phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The listeners below are wired once for the whole session, so they must
+  // not capture this render's handlers. They call through a ref kept current
+  // instead — the same reason `live` exists, for the same inputs. Closing
+  // over the handlers directly would mean either a stale exercise or
+  // re-registering the MIDI device on every keystroke.
+  const handlers = useRef(null);
+  useLayoutEffect(() => {
+    handlers.current = { answerNote, answerChord, answerPos, answerInterval };
+  });
+
   // MIDI: wired once for the whole session; routes into the active drill.
   // onNote fires immediately (no added latency for reading drills) and is
   // ignored during chord drills, which grade the buffered onChord set instead.
@@ -359,9 +377,9 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
     () =>
       startMidiListener({
         onNote: midi => {
-          if (live.current.exercise.drill !== "chord") answerNote(midi);
+          if (live.current.exercise.drill !== "chord") handlers.current.answerNote(midi);
         },
-        onChord: midis => answerChord(midis),
+        onChord: midis => handlers.current.answerChord(midis),
         onDevices: setMidiDevices,
       }),
     [],
@@ -373,11 +391,11 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       const k = e.key.toUpperCase();
       if ("ABCDEFG".includes(k) && k.length === 1) {
         const midi = { C: 60, D: 62, E: 64, F: 65, G: 67, A: 69, B: 71 }[k];
-        answerNote(midi, { pitchClassOnly: true });
+        handlers.current.answerNote(midi, { pitchClassOnly: true });
       }
-      if (k === "L") answerPos("line");
-      if (k === "S") answerPos("space");
-      if ("2345".includes(k) && k.length === 1) answerInterval(Number(k));
+      if (k === "L") handlers.current.answerPos("line");
+      if (k === "S") handlers.current.answerPos("space");
+      if ("2345".includes(k) && k.length === 1) handlers.current.answerInterval(Number(k));
       if ((e.key === " " || e.key === "Enter") && live.current.exercise.drill === "rhythm") {
         e.preventDefault();
         tapRef.current?.();
@@ -618,6 +636,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
 
       {exercise.drill === "rhythm" && (
         <TimedPlay
+          key={state.idx}
           expected={timedExpected}
           label={rhythmName(exercise.name)}
           onAttempt={timedAttempt}
@@ -629,6 +648,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       {isPieceDrill(exercise) && (
         <>
           <TimedPlay
+            key={state.idx}
             expected={timedExpected}
             label={`${exercise.title} — ${t("bar")} ${exercise.bar}/${exercise.bars}`}
             bpm={exercise.bpm}
@@ -643,6 +663,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       {exercise.drill === "phrase-timed" && (
         <>
           <TimedPlay
+            key={state.idx}
             expected={timedExpected}
             label={t("In time")}
             onAttempt={timedPhraseAttempt}
@@ -656,6 +677,7 @@ export default function Session({ exercises, settings, onFinish, onHome }) {
       {exercise.drill === "technique" && (
         <>
           <TimedPlay
+            key={state.idx}
             expected={timedExpected}
             label={techniqueName(exercise.name)}
             onAttempt={timedAttempt}

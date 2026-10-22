@@ -191,20 +191,9 @@ describe("the input surface", () => {
 });
 
 describe("starting over", () => {
-  it("clears the previous verdicts when the exercise changes", () => {
-    const first = expectTaps(["q", "q", "q", "q"]);
-    const { rerender } = render(
-      <TimedPlay expected={first} label="x" onAttempt={vi.fn()} registerInput={vi.fn()} />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "▶ Count-in & play" }));
-    advance(START_DELAY + COUNT_IN * SPB + SPB * 4 + 400);
-    expect(document.querySelector(".verdicts")).toBeInTheDocument();
-
-    rerender(<TimedPlay expected={expectTaps(["h", "h"])} label="x" onAttempt={vi.fn()} registerInput={vi.fn()} />);
-    expect(document.querySelector(".verdicts")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "▶ Count-in & play" })).toBeEnabled();
-  });
-
+  // Clearing a scored take between exercises is no longer this component's
+  // job: Session keys it per exercise, so it is remounted rather than reset.
+  // That contract is tested in Session.test.jsx, where the key lives.
   it("lets you take it again after scoring", () => {
     const expected = expectTaps(["q", "q", "q", "q"]);
     const { onAttempt } = play(expected);

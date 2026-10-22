@@ -4,6 +4,7 @@ import {
   Annotation, AnnotationVerticalJustify,
 } from "vexflow";
 import { KEYS, LETTER_COLORS, noteInKey } from "../lib/notes.js";
+import { vexDuration } from "../lib/vex.js";
 
 // One bar of a piece on the grand staff.
 //
@@ -21,16 +22,6 @@ const DIM = "#b3a98f"; // the hand you are not playing right now
 const KEY_BY_NAME = Object.fromEntries(
   Object.entries(KEYS).map(([id, k]) => [k.name, id]),
 );
-
-/** Beats to a VexFlow duration, plus how many dots it needs. */
-export function vexDuration(beats) {
-  const table = [
-    [4, "w", 0], [3, "h", 1], [2, "h", 0], [1.5, "q", 1],
-    [1, "q", 0], [0.75, "8", 1], [0.5, "8", 0], [0.25, "16", 0],
-  ];
-  const match = table.find(([value]) => Math.abs(value - beats) < 1e-6);
-  return match ? { duration: match[1], dots: match[2] } : { duration: "q", dots: 0 };
-}
 
 function buildVoice(notes, clef, beatsPerBar, { active, showFingers, keyId }) {
   const staveNotes = notes.map(note => {

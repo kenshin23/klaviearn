@@ -60,3 +60,14 @@ export function click(when, accent = false) {
   osc.start(when);
   osc.stop(when + 0.08);
 }
+
+// Where a time on the audio clock lands on performance.now()'s clock.
+//
+// Notes are scheduled on the audio clock because it does not drift, but
+// input arrives stamped against performance.now(). Comparing the two needs
+// one fixed point, measured once at the start of a take: afterwards the
+// offset is arithmetic, and the player is scored against the clicks they
+// actually heard rather than against when a timer happened to fire.
+export function perfTimeFor(ctx, audioTime) {
+  return performance.now() + (audioTime - ctx.currentTime) * 1000;
+}
