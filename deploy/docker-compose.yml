@@ -11,6 +11,9 @@ services:
     environment:
       KLAVIEARN_ENV: production
       KLAVIEARN_SECRET: ${KLAVIEARN_SECRET:?set in .env}
+      # Unset closes signups rather than opening them, and deliberately does
+      # not use :? — a forgotten code must not keep the app from booting.
+      KLAVIEARN_SIGNUP_CODE: ${KLAVIEARN_SIGNUP_CODE:-}
       KLAVIEARN_DB: /data/klaviearn.db
       KLAVIEARN_WEB_DIST: /webdist
     volumes:

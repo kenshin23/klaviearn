@@ -206,6 +206,7 @@ h2 {
   border: 2px solid #46405c; border-radius: 12px; padding: 12px 14px;
 }
 .form-error { color: var(--bad); font-weight: 700; margin: 0; }
+.auth-form .hint { color: var(--dim); font-size: 18px; font-weight: 400; }
 .form-ok { color: var(--ok-bright); font-weight: 700; margin: 0; }
 
 /* Black keys keep their natural's colour — swapping to dark-on-dark would

@@ -6,6 +6,7 @@ export default function Auth({ onAuthed, onGuest }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -14,8 +15,9 @@ export default function Auth({ onAuthed, onGuest }) {
     setBusy(true);
     setError(null);
     try {
-      const fn = mode === "login" ? api.login : api.register;
-      const res = await fn(email, password);
+      const res = mode === "login"
+        ? await api.login(email, password)
+        : await api.register(email, password, code);
       setToken(res.token);
       onAuthed();
     } catch (err) {
@@ -57,6 +59,24 @@ export default function Auth({ onAuthed, onGuest }) {
             required
           />
         </label>
+        {mode === "register" && (
+          <label>
+            {t("Signup code")}
+            {/*
+              Deliberately not a password field. This is a shared code rather
+              than anybody's secret, and a box you cannot proofread is the
+              wrong trade in an app built to be readable with low vision.
+            */}
+            <input
+              type="text"
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              autoComplete="off"
+              required
+            />
+            <small className="hint">{t("Whoever invited you has it.")}</small>
+          </label>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="btn primary" type="submit" disabled={busy}>
           {busy ? "…" : mode === "login" ? t("Log in") : t("Sign up")}

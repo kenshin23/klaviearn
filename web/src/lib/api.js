@@ -23,8 +23,8 @@ async function request(path, { method = "GET", body } = {}) {
 const normalizeExercise = e => ({ ...e, posLabel: e.pos_label ?? e.posLabel });
 
 export const api = {
-  register: (email, password) =>
-    request("/auth/register", { method: "POST", body: { email, password } }),
+  register: (email, password, code) =>
+    request("/auth/register", { method: "POST", body: { email, password, code } }),
   login: (email, password) =>
     request("/auth/login", { method: "POST", body: { email, password } }),
   me: () => request("/me"),

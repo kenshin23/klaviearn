@@ -12,8 +12,23 @@ REGISTER = "/api/auth/register"
 LOGIN = "/api/auth/login"
 
 
-def register(client, email=EMAIL, password=PASSWORD):
-    return client.post(REGISTER, json={"email": email, "password": password})
+def register(client, email=EMAIL, password=PASSWORD, code=None):
+    body = {"email": email, "password": password}
+    if code is not None:
+        body["code"] = code
+    return client.post(REGISTER, json=body)
+
+
+@pytest.fixture
+def gated(monkeypatch):
+    """A deployment with a signup code set.
+
+    The module reads the environment once at import, so the test moves the
+    value rather than the variable.
+    """
+    monkeypatch.setattr(auth, "SIGNUP_CODE", "let-me-in-please")
+    monkeypatch.setattr(auth, "OPEN_WITHOUT_CODE", False)
+    return "let-me-in-please"
 
 
 # --- Registration ------------------------------------------------------------
@@ -195,3 +210,112 @@ def test_the_password_endpoint_is_rate_limited(auth_client):
         auth_client.put("/api/me/password", json={"current": "wrong", "new": NEW_PASSWORD})
     r = auth_client.put("/api/me/password", json={"current": "wrong", "new": NEW_PASSWORD})
     assert r.status_code == 429
+
+
+# --- The signup code ---------------------------------------------------------
+#
+# Registration is open on a dev machine and gated on a deployed one. The gate
+# is a shared code rather than an invite system because the point is modest:
+# someone who stumbles onto the URL should not be able to make an account,
+# while someone who was told the code can do it on their phone, with nothing
+# for the owner to administer.
+
+def test_the_right_code_registers(client, gated):
+    r = register(client, code=gated)
+    assert r.status_code == 200
+    assert r.json()["token"]
+
+
+@pytest.mark.parametrize("code", ["", "nearly-right", "LET-ME-IN-PLEASE", "let-me-in-pleas"])
+def test_a_wrong_code_is_refused(client, gated, code):
+    r = register(client, code=code)
+    assert r.status_code == 403
+    assert "code" in r.json()["detail"]
+
+
+def test_a_client_that_sends_no_code_at_all_is_refused_by_the_gate(client, gated):
+    # Not a 422 about the request shape: an older frontend should be told
+    # about the code, which is something the person can act on.
+    r = register(client, code=None)
+    assert r.status_code == 403
+    assert "code" in r.json()["detail"]
+
+
+def test_a_refused_signup_creates_nothing(client, gated, db):
+    register(client, code="wrong")
+    assert db.scalar(select(User).where(User.email == EMAIL)) is None
+
+
+def test_a_wrong_code_does_not_reveal_who_already_has_an_account(client, gated, db):
+    register(client, code=gated)  # EMAIL now exists
+
+    taken = register(client, email=EMAIL, code="wrong")
+    free = register(client, email="nobody@example.com", code="wrong")
+    # Same answer either way: the duplicate-email 409 would otherwise let
+    # someone without the code probe for who practises here.
+    assert taken.status_code == free.status_code == 403
+    assert taken.json() == free.json()
+
+
+def test_deployed_without_a_code_closes_signups_rather_than_opening_them(client, monkeypatch):
+    monkeypatch.setattr(auth, "SIGNUP_CODE", "")
+    monkeypatch.setattr(auth, "OPEN_WITHOUT_CODE", False)
+    r = register(client)
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Signups are closed"
+
+
+def test_dev_without_a_code_stays_open(client, monkeypatch):
+    monkeypatch.setattr(auth, "SIGNUP_CODE", "")
+    monkeypatch.setattr(auth, "OPEN_WITHOUT_CODE", True)
+    assert register(client).status_code == 200
+
+
+def test_the_gate_does_not_touch_logging_in(client, gated):
+    register(client, code=gated)
+    r = client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD})
+    assert r.status_code == 200
+
+
+# --- create-user: the way in when signups are shut ---------------------------
+
+def test_create_user_makes_a_working_account(client, db):
+    from app.manage import create_user
+
+    password = create_user(db, "teacher@example.com")
+    assert len(password) >= 8  # generated, not blank
+
+    r = client.post(LOGIN, json={"email": "teacher@example.com", "password": password})
+    assert r.status_code == 200
+
+
+def test_create_user_takes_a_chosen_password_and_normalises_the_email(client, db):
+    from app.manage import create_user
+
+    create_user(db, "  Teacher@Example.COM  ", "a chosen passphrase")
+    r = client.post(LOGIN, json={"email": "teacher@example.com", "password": "a chosen passphrase"})
+    assert r.status_code == 200
+
+
+def test_create_user_bypasses_the_signup_gate_but_not_the_validation(db, gated):
+    from app.manage import create_user
+
+    # The gate is for strangers with the URL, not for the owner at a shell.
+    create_user(db, "teacher@example.com", "a chosen passphrase")
+    assert db.scalar(select(User).where(User.email == "teacher@example.com")) is not None
+
+    for bad in ("short", "1234567"):
+        with pytest.raises(ValueError, match="at least 8"):
+            create_user(db, f"x{bad}@example.com", bad)
+    # An empty password means "generate one", the same as omitting it.
+    assert len(create_user(db, "generated@example.com", "")) >= 8
+    with pytest.raises(ValueError, match="email address"):
+        create_user(db, "nonsense", "a chosen passphrase")
+
+
+def test_create_user_refuses_to_clobber_an_existing_account(client, db):
+    from app.manage import create_user
+
+    register(client)
+    with pytest.raises(ValueError, match="already exists"):
+        create_user(db, EMAIL, "a different passphrase")

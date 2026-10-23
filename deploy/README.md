@@ -18,6 +18,7 @@ The old `klaviearn.162-243-66-225.sslip.io` hostname is **retired** — see
 /opt/klaviearn/
   Dockerfile, docker-compose.yml   (from this folder)
   .env                             KLAVIEARN_SECRET=<openssl rand -hex 32>
+                                   KLAVIEARN_SIGNUP_CODE=<any shared phrase>
   server/                          backend source (rsynced)
   webdist/                         built frontend (rsynced from web/dist)
   data/klaviearn.db                SQLite, survives rebuilds
@@ -47,6 +48,22 @@ There is no migration tool. `server/app/main.py` runs
 line in that list**, or production breaks on the first query touching it
 while every test still passes against a freshly created database. Alembic
 when the schema stops churning.
+
+## Who can sign up
+
+Registration takes a shared code, set as `KLAVIEARN_SIGNUP_CODE` in `.env`.
+Anyone given the code can make an account on their own phone; anyone who
+merely finds the URL cannot. Guest mode needs no account either way, so a
+visitor can still practise without one.
+
+Changing the code takes effect on the next `docker compose up -d` — it is
+read once at startup. Existing accounts and their tokens are unaffected,
+because the code gates registration only.
+
+Leaving it unset **closes** signups rather than opening them, and does not
+stop the app serving. On a dev machine (`KLAVIEARN_ENV=dev`) an unset code
+leaves registration open, so a fresh clone works with no setup. To create an
+account on a closed instance, use `manage.py` on the VPS.
 
 ## TLS
 

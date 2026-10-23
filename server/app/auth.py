@@ -1,3 +1,4 @@
+import hmac
 import os
 import time
 from collections import defaultdict, deque
@@ -24,6 +25,17 @@ if not SECRET:
 ALGO = "HS256"
 TOKEN_DAYS = 30
 
+# Signing up on a deployed instance takes a shared code, handed out on
+# purpose. Dev leaves it open so a fresh clone can register without ceremony.
+#
+# Unset outside dev means signups are CLOSED, not open: forgetting the
+# variable should cost somebody an account, not quietly hold the door open
+# again. It deliberately does not stop the app booting the way a missing
+# SECRET does — practising matters more than registering, and an instance
+# that serves its existing users with signups off is the better failure.
+SIGNUP_CODE = os.environ.get("KLAVIEARN_SIGNUP_CODE", "")
+OPEN_WITHOUT_CODE = ENV == "dev"
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer = HTTPBearer()
 
@@ -47,6 +59,31 @@ def rate_limit(request: Request):
 class Credentials(BaseModel):
     email: str
     password: str
+
+
+class Registration(Credentials):
+    # Defaulted rather than required: a client that has not been told about
+    # the code should be turned away by the gate below, with a message about
+    # the code, instead of by a 422 about its request shape.
+    code: str = ""
+
+
+def check_signup_code(code: str) -> None:
+    """Let through only someone who was given the code.
+
+    Checked before the request touches the database at all, so that someone
+    without the code cannot use the duplicate-email conflict as an oracle for
+    who already has an account here.
+
+    compare_digest because this is a shared secret: a plain == leaks how much
+    of a guess was right through how long the comparison took.
+    """
+    if not SIGNUP_CODE:
+        if OPEN_WITHOUT_CODE:
+            return
+        raise HTTPException(status_code=403, detail="Signups are closed")
+    if not hmac.compare_digest(code.encode(), SIGNUP_CODE.encode()):
+        raise HTTPException(status_code=403, detail="That signup code is not right")
 
 
 class TokenOut(BaseModel):
@@ -81,7 +118,8 @@ def current_user(
 
 
 @router.post("/register", response_model=TokenOut, dependencies=[Depends(rate_limit)])
-def register(body: Credentials, db=Depends(get_db)):
+def register(body: Registration, db=Depends(get_db)):
+    check_signup_code(body.code)
     email = body.email.strip().lower()
     if "@" not in email or len(email) < 5:
         raise HTTPException(status_code=422, detail="That doesn't look like an email address")

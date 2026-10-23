@@ -106,6 +106,8 @@ const STRINGS = {
     "Password": "Contraseña",
     "Log in": "Iniciar sesión",
     "Sign up": "Registrarse",
+    "Signup code": "Código de registro",
+    "Whoever invited you has it.": "Quien te invitó lo tiene.",
     "New here? Create an account": "¿Primera vez? Crea una cuenta",
     "Have an account? Log in": "¿Ya tienes cuenta? Inicia sesión",
     "Practice without an account (progress stays on this device)": "Practica sin cuenta (el progreso se queda en este dispositivo)",

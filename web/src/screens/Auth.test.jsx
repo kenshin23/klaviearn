@@ -17,6 +17,7 @@ const show = () => {
 
 const email = () => screen.getByLabelText(/Email/);
 const password = () => screen.getByLabelText(/Password/);
+const signupCode = () => screen.getByLabelText(/Signup code/);
 
 beforeEach(() => setLocale("en", "letters"));
 
@@ -70,11 +71,45 @@ describe("registering", () => {
     await userEvent.click(screen.getByRole("button", { name: /New here/ }));
     await userEvent.type(email(), "new@b.com");
     await userEvent.type(password(), "a brand new passphrase");
+    await userEvent.type(signupCode(), "abc123");
     await userEvent.click(screen.getByRole("button", { name: "Sign up" }));
 
-    expect(api.register).toHaveBeenCalledWith("new@b.com", "a brand new passphrase");
+    expect(api.register).toHaveBeenCalledWith("new@b.com", "a brand new passphrase", "abc123");
     expect(api.login).not.toHaveBeenCalled();
     expect(onAuthed).toHaveBeenCalled();
+  });
+
+  // The gate is the server's; this is only the box it is typed into. What
+  // matters here is that it is asked for when signing up, never when logging
+  // in, and that the server's refusal is shown rather than swallowed.
+  it("asks for a signup code only when signing up", async () => {
+    show();
+    expect(screen.queryByLabelText(/Signup code/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /New here/ }));
+    expect(signupCode()).toBeRequired();
+    // Readable rather than masked: it is a shared code, not a secret of
+    // theirs, and this app is built to be proofread with low vision.
+    expect(signupCode()).toHaveAttribute("type", "text");
+    expect(signupCode()).toHaveAttribute("autoComplete", "off");
+
+    await userEvent.click(screen.getByRole("button", { name: /Have an account/ }));
+    expect(screen.queryByLabelText(/Signup code/)).not.toBeInTheDocument();
+  });
+
+  it("shows the server's verdict when the code is wrong", async () => {
+    api.register.mockRejectedValue(new Error("That signup code is not right"));
+    const { onAuthed } = show();
+
+    await userEvent.click(screen.getByRole("button", { name: /New here/ }));
+    await userEvent.type(email(), "new@b.com");
+    await userEvent.type(password(), "a brand new passphrase");
+    await userEvent.type(signupCode(), "wrong");
+    await userEvent.click(screen.getByRole("button", { name: "Sign up" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("That signup code is not right");
+    expect(onAuthed).not.toHaveBeenCalled();
+    expect(setToken).not.toHaveBeenCalled();
   });
 
   it("clears a stale error when switching mode", async () => {
