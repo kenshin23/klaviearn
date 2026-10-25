@@ -62,6 +62,40 @@ describe("fingering as a scaffold", () => {
   });
 });
 
+describe("live note verdicts", () => {
+  it("colours accepted notes green, wrong notes red, and pending notes neutrally", () => {
+    const verdicts = [
+      { verdict: "ok" }, { verdict: "early" }, { verdict: "late" },
+      { verdict: "wrong" }, { verdict: "missed" }, { verdict: "pending" },
+      { verdict: "pending" },
+    ];
+    const colors = headColors(draw("arp:C:rh", { verdicts, activeIdx: 6 }));
+    expect(colors).toEqual([
+      "#238636", "#238636", "#238636", "#d61f3d", "#d61f3d", "#394150", "#b77900",
+    ]);
+  });
+
+  it("keeps accepted verdict colors when that note is also active", () => {
+    const colors = headColors(draw("arp:C:rh", {
+      verdicts: [{ verdict: "ok" }],
+      activeIdx: 0,
+    }));
+    expect(colors[0]).toBe("#238636");
+  });
+
+  it("describes the correct count to screen readers only when verdicts are supplied", () => {
+    const withVerdicts = draw("arp:C:rh", {
+      verdicts: [{ verdict: "ok" }, { verdict: "early" }, { verdict: "wrong" }],
+    });
+    expectDescribedForScreenReaders(withVerdicts, /2 correct of 7/);
+    expectDescribedForScreenReaders(draw("arp:C:rh"), /fingering 1 2 3 5 3 2 1$/);
+  });
+
+  it("preserves the legacy red active-note behavior when verdicts are omitted", () => {
+    expect(headColors(draw("arp:C:rh", { activeIdx: 0 }))[0]).toBe("#d61f3d");
+  });
+});
+
 describe("accessibility", () => {
   it("tells a screen reader the pattern and its fingering", () => {
     expectDescribedForScreenReaders(draw("arp:C:lh"), /C major arpeggio, left hand, 7 notes/);

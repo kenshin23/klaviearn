@@ -97,6 +97,78 @@ it("scores every real-time attack at 20 then 21 bpm without a gap", async () => 
   await advance(8950 - performance.now());
   expect(results.map(result => result.bpm)).toEqual([20, 21]);
   expect(results.map(result => result.hit)).toEqual([true, true]);
+  expect(results.map(({ correct, total, percent }) => ({ correct, total, percent })))
+    .toEqual([{ correct: 15, total: 15, percent: 100 }, { correct: 15, total: 15, percent: 100 }]);
+  clock.stop();
+});
+
+it("publishes live wrong, pending, and missed feedback while preserving the strict octave check", async () => {
+  const exercise = makeArpeggio();
+  const snapshots = [];
+  const results = [];
+  const clock = createArpeggioClock({ exercise, onFeedback: snapshot => snapshots.push(snapshot),
+    onCycle: result => { results.push(result); } });
+  await clock.start();
+  expect(snapshots.at(-1)).toMatchObject({
+    cycleId: 1, correct: 0, total: 15, percent: 0, extras: 0,
+  });
+  expect(snapshots.at(-1).verdicts.every(({ verdict }) => verdict === "pending")).toBe(true);
+
+  const firstAt = 3050;
+  await advance(firstAt - performance.now());
+  clock.record(exercise.midis[0] + 12, firstAt);
+  expect(snapshots.at(-1).verdicts[0].verdict).toBe("wrong");
+  expect(snapshots.at(-1).lastInput).toMatchObject({
+    midi: exercise.midis[0] + 12, expectedMidi: exercise.midis[0], index: 0, phase: "playing",
+  });
+
+  await advance(3050 + 3000 / exercise.midis.length
+    + (0.35 / exercise.midis.length * 3000) - performance.now() + 1);
+  expect(snapshots.at(-1).verdicts[1].verdict).toBe("missed");
+  expect(snapshots.at(-1).verdicts[2].verdict).toBe("pending");
+  await advance(6070 - performance.now());
+  expect(results).toHaveLength(1);
+  const finalSnapshot = snapshots.findLast(snapshot => snapshot.cycleId === results[0].cycleId);
+  expect(finalSnapshot).toMatchObject({
+    correct: results[0].correct, total: results[0].total, percent: results[0].percent,
+  });
+  expect(results[0]).toMatchObject({ correct: 0, total: 15, percent: 0, wrong: 1, missed: 14 });
+  const countBeforeStop = snapshots.length;
+  clock.stop();
+  await advance(1000);
+  expect(snapshots).toHaveLength(countBeforeStop);
+});
+
+it("reports counting inputs without grading them and credits consecutive Db seam attacks", async () => {
+  const exercise = makeArpeggio();
+  const snapshots = [];
+  const results = [];
+  const clock = createArpeggioClock({ exercise, onFeedback: snapshot => snapshots.push(snapshot),
+    onCycle: result => { results.push(result); } });
+  await clock.start();
+  clock.record(99, performance.now());
+  expect(snapshots.at(-1).lastInput).toMatchObject({ midi: 99, phase: "counting" });
+  expect(snapshots.at(-1).correct).toBe(0);
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const start = 3050 + cycle * 3000;
+    for (let index = 0; index < exercise.midis.length; index++) {
+      const at = start + index * 3000 / exercise.midis.length - (index === 0 ? 30 : 0);
+      await advance(at - performance.now());
+      clock.record(exercise.midis[index], at);
+      if (cycle === 1 && index === 0) {
+        expect(snapshots.at(-1).lastInput).toMatchObject({
+          midi: exercise.midis[0], expectedMidi: exercise.midis[0], index: 0,
+          phase: "playing",
+        });
+        expect(snapshots.at(-1).lastInput.offsetMs).toBeCloseTo(-30, 8);
+      }
+    }
+  }
+  await advance(9070 - performance.now());
+  expect(results.slice(0, 2).map(({ correct, total, percent }) => [correct, total, percent]))
+    .toEqual([[15, 15, 100], [15, 15, 100]]);
+  expect(results[0].verdicts.at(-1).played).toBe(exercise.midis[14]);
+  expect(results[1].verdicts[0].played).toBe(exercise.midis[0]);
   clock.stop();
 });
 
@@ -152,5 +224,29 @@ it("schedules fifteen clicks at the note grid through a 20-to-21 bpm cycle chang
   expect(playing[noteCount][1]).toBe(true);
   expect(playing.slice(noteCount + 1, 2 * noteCount).every(([, accent]) => !accent)).toBe(true);
   expect(playing.at(-1)[1]).toBe(true);
+  clock.stop();
+});
+
+it("publishes partial credit and extras immediately and agrees with the final same-cycle result", async () => {
+  const exercise = makeArpeggio();
+  const snapshots = [];
+  const results = [];
+  const clock = createArpeggioClock({ exercise, onFeedback: snapshot => snapshots.push(snapshot),
+    onCycle: result => { results.push(result); } });
+  await clock.start();
+  await advance(3050);
+  clock.record(exercise.midis[0]);
+  expect(snapshots.at(-1)).toMatchObject({ correct: 1, total: 15, percent: 7, extras: 0 });
+  expect(snapshots.at(-1).verdicts[1].verdict).toBe("pending");
+  clock.record(100);
+  expect(snapshots.at(-1)).toMatchObject({ correct: 1, total: 15, percent: 7, extras: 1 });
+  const unchangedCount = snapshots.length;
+  await advance(10);
+  expect(snapshots).toHaveLength(unchangedCount);
+  await advance(6070 - performance.now());
+  expect(results[0]).toMatchObject({ correct: 1, total: 15, percent: 7, extras: 1, hit: false });
+  const finalSnapshot = snapshots.findLast(snapshot => snapshot.cycleId === results[0].cycleId);
+  expect(finalSnapshot).toMatchObject({ correct: 1, total: 15, percent: 7, extras: 1 });
+  expect(finalSnapshot.verdicts.slice(1).every(({ verdict }) => verdict === "missed")).toBe(true);
   clock.stop();
 });

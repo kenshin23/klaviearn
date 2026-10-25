@@ -38,6 +38,27 @@ function feedbackFor(result) {
   return t("Clean cycle. Keep going.");
 }
 
+function noteName(midi) {
+  if (!Number.isFinite(midi)) return "—";
+  const names = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+  return `${names[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+}
+
+function passSummary(result, fallbackTotal) {
+  const verdicts = Array.isArray(result?.verdicts) ? result.verdicts : [];
+  const correct = Number.isFinite(result?.correct)
+    ? result.correct
+    : verdicts.filter(item => ["ok", "early", "late"].includes(item?.verdict)).length;
+  const total = Number.isFinite(result?.total) ? result.total : (verdicts.length || fallbackTotal);
+  const percent = Number.isFinite(result?.percent)
+    ? result.percent : (total ? Math.round(correct / total * 100) : 0);
+  const wrong = Number.isFinite(result?.wrong) ? result.wrong
+    : verdicts.filter(item => item?.verdict === "wrong").length;
+  const missed = Number.isFinite(result?.missed) ? result.missed
+    : verdicts.filter(item => item?.verdict === "missed").length;
+  return { ...result, verdicts, correct, total, percent, wrong, missed };
+}
+
 export default function ArpeggioPractice({ settings = {}, onSettings = () => {}, onHome = () => {} }) {
   const config = useMemo(() => readConfig(settings), [settings]);
   const preset = ARPEGGIO_PRESETS.find(item => item.id === config.presetId) ?? ARPEGGIO_PRESETS[0];
@@ -50,6 +71,8 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   const [midiDevices, setMidiDevices] = useState([]);
   const [startError, setStartError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [livePass, setLivePass] = useState(null);
+  const [lastPass, setLastPass] = useState(null);
   const [cleanStreak, setCleanStreak] = useState(0);
   const clockRef = useRef(null);
   const stopMidiRef = useRef(null);
@@ -59,6 +82,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   const generationRef = useRef(0);
   const busyRef = useRef(false);
   const mountedRef = useRef(false);
+  const feedbackKeyRef = useRef(key);
 
   useLayoutEffect(() => {
     if (runtimeRef.current.key !== key) {
@@ -67,6 +91,14 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     }
     runtimeRef.current = { key, bpm: progress.bpm, bestBpm: progress.bestBpm, streak: 0 };
   }, [key, progress.bpm, progress.bestBpm]);
+
+  useLayoutEffect(() => {
+    if (feedbackKeyRef.current === key) return;
+    feedbackKeyRef.current = key;
+    setFeedback("");
+    setLivePass(null);
+    setLastPass(null);
+  }, [key]);
 
   const persistConfig = useCallback(patch => {
     onSettings(previous => {
@@ -95,6 +127,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     streakRef.current = { key: live.key, streak: next.streak };
     setCleanStreak(next.streak);
     setFeedback(feedbackFor(result));
+    setLastPass(passSummary(result, live?.exercise?.midis?.length ?? 0));
     onSettings(current => {
       const old = readConfig(current);
       return {
@@ -109,8 +142,8 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   }, [onSettings]);
 
   useLayoutEffect(() => {
-    liveRef.current = { config, key, persistCycle };
-  }, [config, key, persistCycle]);
+    liveRef.current = { config, key, persistCycle, exercise };
+  }, [config, key, persistCycle, exercise]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -166,12 +199,16 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     setRunning(true);
     setStartError("");
     setFeedback("");
+    setLastPass(null);
+    setLivePass({ verdicts: exercise.midis.map(() => ({ verdict: "pending" })),
+      correct: 0, total: exercise.midis.length, percent: 0, extras: 0, lastInput: null });
     const clock = createArpeggioClock({
       exercise,
       bpm: progress.bpm,
       subdivisions: config.clickMode === "four" ? 4
         : config.clickMode === "beat" ? 1 : exercise.midis.length,
       onCycle: result => isCurrent() ? liveRef.current?.persistCycle(result, result.bpm) : undefined,
+      onFeedback: snapshot => { if (isCurrent()) setLivePass(passSummary(snapshot, exercise.midis.length)); },
       onStep: index => { if (isCurrent()) setActiveIdx(index); },
       onPhase: (name, count) => {
         if (!isCurrent()) return;
@@ -203,6 +240,18 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   const phaseText = phase.name === "counting"
     ? `${t("Get ready")}: ${phase.count}`
     : phase.name === "playing" ? t("Playing") : t("Stopped");
+  const reviewPass = running ? livePass : (lastPass ?? livePass);
+  const reviewTitle = running ? "This pass"
+    : lastPass ? "Last pass" : livePass ? "Interrupted pass" : "Waiting for a pass";
+  const statusLabel = verdict => ({
+    pending: t("Pending"), ok: t("Correct"), early: t("Correct, early"), late: t("Correct, late"),
+    wrong: t("Wrong pitch or octave"), missed: t("Missed"),
+  }[verdict] ?? t("Pending"));
+  const diagnostic = livePass?.lastInput;
+  const diagnosticExpected = diagnostic && exercise.notes[diagnostic.index]
+    ? `${exercise.notes[diagnostic.index].letter}${exercise.notes[diagnostic.index].acc}${Math.floor(diagnostic.expectedMidi / 12) - 1}`
+    : noteName(diagnostic?.expectedMidi);
+  const diagnosticPlayed = noteName(diagnostic?.midi);
 
   return (
     <main className="arpeggio-page">
@@ -260,8 +309,41 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
 
         <h2 id="arp-pattern-title">{t(preset.name)} · {t(preset.hand === "rh" ? "right hand" : "left hand")}</h2>
         <div className={`staff-card size-${staffSize}`}>
-          <TechniqueStaff exercise={exercise} showFingers={showFingers} showColor={showColor} activeIdx={activeIdx} />
+          <TechniqueStaff exercise={exercise} showFingers={showFingers} showColor={showColor} activeIdx={activeIdx}
+            verdicts={reviewPass?.verdicts ?? exercise.midis.map(() => ({ verdict: "pending" }))} />
         </div>
+        <section className="arpeggio-pass-feedback" aria-label={t("Pass feedback")}>
+          <div className="arpeggio-pass-summaries">
+            {(running || !lastPass) && <p><strong>{t(reviewTitle)}</strong> {livePass
+              ? <>{livePass.correct}/{livePass.total} · {livePass.percent}% · {livePass.missed ?? 0} {t("missed")} · {livePass.wrong ?? 0} {t("wrong")} · {livePass.extras ?? 0} {t("extra")}</>
+              : null}</p>}
+            {(running || lastPass) && <p><strong>{t("Last pass")}</strong> {lastPass
+              ? <>{lastPass.correct}/{lastPass.total} · {lastPass.percent}% · {lastPass.missed ?? 0} {t("missed")} · {lastPass.wrong ?? 0} {t("wrong")} · {lastPass.extras ?? 0} {t("extra")}</>
+              : t("No completed pass yet")}</p>}
+          </div>
+          <p className="arpeggio-note-feedback-label">{t(reviewTitle)}</p>
+          <p className="arpeggio-feedback-legend">{t("Green: correct note within timing window. Red: wrong pitch or octave, or missed.")}</p>
+          <ol className="arpeggio-note-feedback" aria-label={t("Note by note feedback")}>
+            {exercise.notes.map((note, index) => {
+              const expected = `${note.letter}${note.acc}${Math.floor(note.midi / 12) - 1}`;
+              const verdict = reviewPass?.verdicts?.[index]?.verdict ?? "pending";
+              const symbol = ["ok", "early", "late"].includes(verdict) ? "✓"
+                : ["wrong", "missed"].includes(verdict) ? "×" : "·";
+              const label = `${t("Note")} ${index + 1}, ${expected}: ${statusLabel(verdict)}`;
+              return <li key={`${index}-${note.midi}`} className={`is-${verdict}`} aria-label={label} title={label}>
+                <span className="arpeggio-note-index">{index + 1}</span>
+                <span className="arpeggio-note-mark" aria-hidden="true">{symbol}</span>
+              </li>;
+            })}
+          </ol>
+          <p className="arpeggio-diagnostic" aria-live="polite">
+            {diagnostic
+              ? diagnostic.phase === "counting"
+                ? <>{t("Count-in input")} · {t("Expected")} {diagnosticExpected} · {t("Played")} {diagnosticPlayed}</>
+                : <>{t("Expected")} {diagnosticExpected} · {t("Played")} {diagnosticPlayed} · {diagnostic.offsetMs >= 0 ? "+" : ""}{Math.round(diagnostic.offsetMs)} ms</>
+              : t("Waiting for MIDI input")}
+          </p>
+        </section>
         <details className="arpeggio-sequence-panel">
           <summary>{t("Note and finger sequence")}</summary>
           <ol className="arpeggio-sequence" aria-label={t("Note and finger sequence")}>

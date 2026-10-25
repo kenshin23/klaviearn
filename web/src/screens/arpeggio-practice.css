@@ -65,6 +65,54 @@
 
 .arpeggio-card h2 { margin: 0 0 .35rem; font-size: 1.15rem; }
 .arpeggio-card .staff { margin: .5rem auto; overflow-x: auto; }
+.arpeggio-pass-feedback { margin: .65rem 0 1rem; }
+.arpeggio-pass-summaries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem 1rem;
+  align-items: baseline;
+  color: var(--dim);
+  font-size: .84rem;
+  font-variant-numeric: tabular-nums;
+}
+.arpeggio-pass-summaries p { margin: 0; }
+.arpeggio-pass-summaries strong { color: var(--text); }
+.arpeggio-note-feedback-label { margin: .45rem 0 .2rem; color: var(--dim); font-size: .7rem; font-weight: 700; }
+.arpeggio-feedback-legend { margin: 0 0 .3rem; color: var(--dim); font-size: .68rem; }
+.arpeggio-note-feedback {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(1.5rem, 1fr));
+  gap: .2rem;
+  padding: 0;
+  margin: .55rem 0;
+  list-style: none;
+}
+.arpeggio-note-feedback li {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: .12rem;
+  min-width: 0;
+  padding: .08rem .12rem;
+  border: 1px solid transparent;
+  border-radius: .25rem;
+  color: var(--dim);
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+}
+.arpeggio-note-index { font-size: .64rem; opacity: .85; }
+.arpeggio-note-mark { font-size: .82rem; font-weight: 800; }
+.arpeggio-note-feedback li.is-ok, .arpeggio-note-feedback li.is-early, .arpeggio-note-feedback li.is-late {
+  color: var(--ok-bright);
+  border-color: var(--ok-bright);
+}
+.arpeggio-note-feedback li.is-wrong, .arpeggio-note-feedback li.is-missed {
+  color: #ff8393;
+  border-color: #ff8393;
+}
+.arpeggio-note-feedback li.is-pending { color: var(--dim); }
+.arpeggio-diagnostic { margin: .35rem 0 0; color: var(--dim); font-size: .78rem; font-variant-numeric: tabular-nums; }
 .arpeggio-sequence {
   display: grid;
   grid-template-columns: repeat(8, minmax(3.4rem, 1fr));
@@ -92,16 +140,16 @@
 
 .arpeggio-stats {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: .6rem;
-  padding: 1rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: .45rem;
+  padding: .65rem 0;
   border-top: 1px solid var(--ink-3);
   border-bottom: 1px solid var(--ink-3);
 }
 
-.arpeggio-stats div { display: grid; gap: .25rem; }
-.arpeggio-stats span { color: var(--dim); font-size: .8rem; }
-.arpeggio-stats strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.arpeggio-stats div { display: grid; gap: .15rem; min-width: 0; }
+.arpeggio-stats span { color: var(--dim); font-size: .68rem; line-height: 1.2; }
+.arpeggio-stats strong { font-size: .84rem; font-variant-numeric: tabular-nums; }
 .arpeggio-controls { display: flex; align-items: end; gap: .7rem; margin-top: 1rem; }
 .arpeggio-controls button { cursor: pointer; font-weight: 700; }
 .arpeggio-controls .arpeggio-primary { background: var(--gold); color: var(--ink); border-color: var(--gold); }
@@ -114,7 +162,7 @@
 
 @media (max-width: 720px) {
   .arpeggio-config { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .arpeggio-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .arpeggio-stats { grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr)); }
   .arpeggio-sequence { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 

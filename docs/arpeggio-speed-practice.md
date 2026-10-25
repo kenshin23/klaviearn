@@ -41,6 +41,26 @@ The default starting note is Db2 (MIDI 37); the lower octave can be selected
 before starting. The notation retains D-flat and A-flat spellings rather than
 substituting sharps.
 
+## Note-by-note feedback
+
+During a pass, accepted notes turn green; wrong or missed notes turn red.
+Unplayed notes stay neutral, and the moving amber cursor only marks the next
+beat. The compact feedback strip also uses check marks and crosses, so color
+is not the only cue. A note counts as correct when both its pitch/octave and
+timing satisfy the scoring window.
+
+The current pass and last completed pass show correct notes out of the full
+pattern and a percentage, for example **12/15 · 80%**. Wrong, missed and extra
+notes remain visible in the last-pass breakdown. A partial result does not
+raise the tempo; the full clean-cycle rule still applies. Stopping retains the
+last complete result, or labels a partial result as interrupted.
+
+The MIDI diagnostic shows the last received pitch, the expected pitch and its
+timing offset. Use it to distinguish an octave mismatch, input during the
+count-in, missing input and playing outside the timing window. The current
+pattern still requires two separate lower D-flat presses across a cycle join:
+one ends the previous pass and the next starts the new pass.
+
 ## Saved progress
 
 Configuration, current tempo and confirmed best tempo are saved with the

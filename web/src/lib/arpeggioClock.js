@@ -1,12 +1,12 @@
 import { audioContext, click, perfTimeFor } from "./audio.js";
-import { scoreCycle } from "./arpeggios.js";
+import { scoreCycle, summarizeCycle } from "./arpeggios.js";
 
 const TICK_MS = 20;
 const LOOKAHEAD_SECONDS = 0.1;
 const MAX_LAG_SECONDS = 0.5;
 
 export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefined,
-  onStep = () => {}, onPhase = () => {}, subdivisions = 4 }) {
+  onStep = () => {}, onPhase = () => {}, onFeedback = () => {}, subdivisions = 4 }) {
   if (!exercise || !Array.isArray(exercise.midis) || exercise.midis.length < 2) {
     throw new TypeError("An arpeggio exercise with at least two notes is required");
   }
@@ -18,6 +18,7 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
   let anchorAudio, anchorPerf, playStart, cycleStart, duration, currentBpm;
   let countClick, subdivision, boundaryScheduled, lastUpdate, lastStep, lastPhase, lastCount;
   let played = [], upcoming = [];
+  let cycleId = 0, lastInput = null, lastFeedback = null;
   const tolerance = 0.35 / exercise.midis.length;
   const phase = (name, count) => {
     if (lastPhase === name && lastCount === count) return;
@@ -26,6 +27,34 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
   const step = index => {
     if (lastStep === index) return;
     lastStep = index; onStep(index);
+  };
+  const feedback = (now = ctx.currentTime) => {
+    const raw = scoreCycle(exercise, played.map(note => ({
+      midi: note.midi, at: (note.at - cycleStart) / duration,
+    })));
+    const verdicts = raw.verdicts.map((entry, index) => {
+      const deadline = cycleStart + (index / exercise.midis.length + tolerance) * duration;
+      return entry.verdict === "missed" && now < deadline
+        ? { ...entry, verdict: "pending" }
+        : entry;
+    });
+    const counts = summarizeCycle({ ...raw, verdicts });
+    const snapshot = {
+      cycleId,
+      bpm: currentBpm,
+      verdicts,
+      correct: counts.correct,
+      total: counts.total,
+      percent: counts.percent,
+      extras: counts.extras,
+      lastInput,
+    };
+    const serialized = JSON.stringify(snapshot);
+    if (serialized !== lastFeedback) {
+      lastFeedback = serialized;
+      onFeedback(snapshot);
+    }
+    return snapshot;
   };
   function stop() {
     generation++;
@@ -52,12 +81,17 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
       const result = scoreCycle(exercise, played.map(note => ({
         midi: note.midi, at: (note.at - cycleStart) / duration,
       })));
-      const next = onCycle({ ...result, bpm: currentBpm });
+      const counts = summarizeCycle(result);
+      feedback(boundary);
+      const next = onCycle({ ...result, ...counts, cycleId, bpm: currentBpm });
       if (!running) return;
       if (Number.isFinite(next) && next > 0) currentBpm = next;
       cycleStart = boundary;
+      cycleId++;
       duration = 60 / currentBpm;
       played = upcoming; upcoming = [];
+      lastFeedback = null;
+      feedback(boundary);
       // The boundary itself is independent of the next tempo and may already
       // have been scheduled. Interior clicks wait for the scoring decision.
       subdivision = boundaryScheduled ? 1 : 0;
@@ -95,6 +129,7 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
       step(Math.min(exercise.midis.length - 1,
         Math.floor((now - cycleStart) / duration * exercise.midis.length)));
     }
+    feedback(now);
   };
   function start() {
     if (pending) return pending;
@@ -111,6 +146,7 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
       playStart = anchorAudio + duration; cycleStart = playStart;
       countClick = 0; subdivision = 0; boundaryScheduled = false;
       played = []; upcoming = [];
+      cycleId++; lastInput = null; lastFeedback = null;
       lastPhase = "idle"; lastCount = null; lastStep = null;
       running = true; lastUpdate = performance.now();
       timer = setInterval(update, TICK_MS);
@@ -123,8 +159,28 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
     const eventAudio = anchorAudio + (at - anchorPerf) / 1000;
     finishThrough(ctx.currentTime);
     if (!running) return;
-    if (eventAudio < cycleStart - duration * tolerance) return;
     const boundary = cycleStart + duration;
+    const counting = eventAudio < playStart - duration * tolerance;
+    const inUpcomingWindow = eventAudio >= boundary - duration * tolerance
+      && eventAudio <= boundary + duration * tolerance;
+    const relative = counting || inUpcomingWindow ? 0 : (eventAudio - cycleStart) / duration;
+    const index = Math.max(0, Math.min(exercise.midis.length - 1,
+      Math.round(relative * exercise.midis.length)));
+    const expectedMidi = exercise.midis[index];
+    lastInput = {
+      midi,
+      expectedMidi,
+      index,
+      offsetMs: (eventAudio - (counting ? playStart
+        : inUpcomingWindow ? boundary
+          : cycleStart + index / exercise.midis.length * duration)) * 1000,
+      phase: counting ? "counting" : "playing",
+    };
+    if (counting) { feedback(ctx.currentTime); return; }
+    if (eventAudio < cycleStart - duration * tolerance) {
+      feedback(ctx.currentTime);
+      return;
+    }
     if (eventAudio >= boundary - duration * tolerance) {
       // Keep absolute onsets: promotion can change the upcoming cycle's
       // tolerance and normalization after this anticipatory attack arrives.
@@ -132,6 +188,7 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
     } else {
       played.push({ midi, at: eventAudio });
     }
+    feedback(ctx.currentTime);
   }
   return { start, stop, record };
 }

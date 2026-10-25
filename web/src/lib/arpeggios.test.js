@@ -1,6 +1,6 @@
 import {
   advanceSpeed, ARPEGGIO_PRESETS, expectedCycle, makeArpeggio, scoreCycle,
-  speedKey, speedProgress,
+  speedKey, speedProgress, summarizeCycle,
 } from "./arpeggios.js";
 
 const exercise = makeArpeggio();
@@ -47,6 +47,21 @@ describe("Db major arpeggio model", () => {
     expect(scoreCycle(exercise, burst).hit).toBe(false);
     expect(scoreCycle(exercise, [...perfect, { at: 1, midi: exercise.midis[0] }]).hit).toBe(false);
     expect(scoreCycle(exercise, [...perfect.slice(0, 8), perfect[7], ...perfect.slice(8)]).hit).toBe(false);
+  });
+
+  it("summarizes accepted notes and distinguishes wrong, missed, and extra notes", () => {
+    const result = scoreCycle(exercise, [
+      ...perfect.slice(0, 4),
+      { ...perfect[4], midi: perfect[4].midi + 12 },
+      ...perfect.slice(6),
+      { at: 0.52, midi: 90 },
+    ]);
+    expect(summarizeCycle(result)).toEqual({
+      correct: 13, total: 15, percent: 87, wrong: 1, missed: 1, extras: 1,
+    });
+    expect(summarizeCycle(scoreCycle(exercise, perfect))).toEqual({
+      correct: 15, total: 15, percent: 100, wrong: 0, missed: 0, extras: 0,
+    });
   });
 
   it("validates preset notation, fingers, octave, and MIDI bounds", () => {

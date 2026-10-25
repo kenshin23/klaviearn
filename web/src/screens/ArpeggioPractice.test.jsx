@@ -136,6 +136,88 @@ describe("arpeggio practice screen", () => {
     expect(screen.getByText("Some notes were missed. Try the cycle again.")).toBeInTheDocument();
   });
 
+  it("shows live per-note verdicts, the pass percentage, and the latest MIDI diagnostic", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    const { options } = createArpeggioClock.mock.results[0].value;
+    const verdicts = [
+      ...Array.from({ length: 12 }, () => ({ verdict: "ok" })),
+      { verdict: "missed" }, { verdict: "wrong" }, { verdict: "pending" },
+    ];
+    await act(async () => options.onFeedback({
+      cycleId: 1, verdicts, correct: 12, total: 15, percent: 80, extras: 1,
+      lastInput: { midi: 49, expectedMidi: 37, index: 0, offsetMs: 90, phase: "playing" },
+    }));
+    expect(screen.getByText("12/15 · 80% · 1 missed · 1 wrong · 1 extra")).toBeInTheDocument();
+    expect(screen.getByText("Green: correct note within timing window. Red: wrong pitch or octave, or missed.")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Note 1, Db2: Correct" })).toHaveClass("is-ok");
+    expect(screen.getByRole("listitem", { name: "Note 13, Db3: Missed" })).toHaveClass("is-missed");
+    expect(screen.getByRole("listitem", { name: "Note 14, Ab2: Wrong pitch or octave" })).toHaveClass("is-wrong");
+    expect(screen.getByText("Expected Db2 · Played Db3 · +90 ms")).toBeInTheDocument();
+    await act(async () => options.onFeedback({
+      cycleId: 1, verdicts, correct: 12, total: 15, percent: 80, extras: 1,
+      lastInput: { midi: 49, expectedMidi: 37, index: 0, offsetMs: 0, phase: "counting" },
+    }));
+    expect(screen.getByText("Count-in input · Expected Db2 · Played Db3")).toBeInTheDocument();
+  });
+
+  it("retains the completed pass across the next cycle and after Stop", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    const { options } = createArpeggioClock.mock.results[0].value;
+    const verdicts = Array.from({ length: 15 }, () => ({ verdict: "ok" }));
+    await act(async () => {
+      options.onFeedback({ cycleId: 1, verdicts, correct: 15, total: 15, percent: 100, extras: 0 });
+      options.onCycle({ hit: false, bpm: 20, verdicts, correct: 15, total: 15, percent: 100, extras: 1 });
+      options.onFeedback({ cycleId: 2, verdicts: verdicts.map(() => ({ verdict: "pending" })),
+        correct: 0, total: 15, percent: 0, extras: 0 });
+    });
+    expect(screen.getByLabelText("Pass feedback")).toHaveTextContent("This pass 0/15 · 0%");
+    expect(screen.getByLabelText("Pass feedback")).toHaveTextContent("Last pass 15/15 · 100% · 0 missed · 0 wrong · 1 extra");
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(screen.getByLabelText("Pass feedback")).toHaveTextContent("Last pass 15/15 · 100% · 0 missed · 0 wrong · 1 extra");
+    expect(screen.getByRole("listitem", { name: "Note 1, Db2: Correct" })).toHaveClass("is-ok");
+  });
+
+  it("shows a waiting state before the first pass starts", () => {
+    render(<Harness />);
+    expect(screen.getAllByText("Waiting for a pass").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Interrupted pass")).not.toBeInTheDocument();
+  });
+
+  it("clears old verdicts and cycle feedback when the starting octave changes", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    const { options } = createArpeggioClock.mock.results[0].value;
+    const verdicts = Array.from({ length: 15 }, () => ({ verdict: "ok" }));
+    await act(async () => options.onCycle({ hit: true, bpm: 20, verdicts,
+      correct: 15, total: 15, percent: 100, extras: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await openSettings(user);
+    await user.selectOptions(screen.getByLabelText("Starting octave"), "3");
+    expect(screen.getAllByText("Waiting for a pass").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Last pass")).not.toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Note 1, Db3: Pending" })).toHaveClass("is-pending");
+    expect(screen.queryByText("Clean cycle. Keep going.")).not.toBeInTheDocument();
+  });
+
+  it("ignores feedback delivered after Stop", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    const { options } = createArpeggioClock.mock.results[0].value;
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => options.onFeedback({
+      cycleId: 1, verdicts: [{ verdict: "wrong" }], correct: 0, total: 15, percent: 0, extras: 0,
+    }));
+    expect(screen.getByLabelText("Pass feedback")).toHaveTextContent("Interrupted pass");
+    expect(screen.getByLabelText("Pass feedback")).toHaveTextContent("0/15 · 0%");
+    expect(screen.getByRole("listitem", { name: "Note 1, Db2: Pending" })).toHaveClass("is-pending");
+  });
+
   it("shows a useful error if the audio clock cannot start", async () => {
     const user = userEvent.setup();
     createArpeggioClock.mockImplementationOnce(() => ({ start: vi.fn().mockRejectedValue(new Error("blocked")), stop: vi.fn() }));

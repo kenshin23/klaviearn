@@ -22,7 +22,7 @@ import { KEYS, LETTER_COLORS } from "../lib/notes.js";
 // Beyond this many notes, one line renders too small to read comfortably.
 const SPLIT_ABOVE = 9;
 
-export default function TechniqueStaff({ exercise, showFingers, showColor, activeIdx = -1 }) {
+export default function TechniqueStaff({ exercise, showFingers, showColor, activeIdx = -1, verdicts }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -60,13 +60,24 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
           const c = LETTER_COLORS[n.letter];
           sn.setStyle({ fillStyle: c, strokeStyle: c });
         }
+        if (verdicts !== undefined) {
+          const verdict = verdicts[i]?.verdict ?? "pending";
+          const color = verdict === "ok" || verdict === "early" || verdict === "late"
+            ? "#238636"
+            : verdict === "wrong" || verdict === "missed"
+              ? "#d61f3d"
+              : i === activeIdx ? "#b77900" : "#394150";
+          sn.setStyle({ fillStyle: color, strokeStyle: color });
+        }
         if (showFingers) {
           const finger = new Annotation(String(exercise.fingers[i]))
             .setFont("Atkinson Hyperlegible, Helvetica, sans-serif", 13, "bold")
             .setVerticalJustification(AnnotationVerticalJustify.TOP);
           sn.addModifier(finger);
         }
-        if (i === activeIdx) sn.setStyle({ fillStyle: "#d61f3d", strokeStyle: "#d61f3d" });
+        if (verdicts === undefined && i === activeIdx) {
+          sn.setStyle({ fillStyle: "#d61f3d", strokeStyle: "#d61f3d" });
+        }
         return sn;
       });
       Formatter.FormatAndDraw(ctx, stave, staveNotes);
@@ -124,9 +135,12 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
     svg.setAttribute("role", "img");
     svg.setAttribute(
       "aria-label",
-      `${exercise.name}, ${count} notes, fingering ${exercise.fingers.join(" ")}`,
+      `${exercise.name}, ${count} notes, fingering ${exercise.fingers.join(" ")}` +
+        (verdicts === undefined
+          ? ""
+          : `, ${verdicts.filter(({ verdict }) => ["ok", "early", "late"].includes(verdict)).length} correct of ${count}`),
     );
-  }, [exercise, showFingers, showColor, activeIdx]);
+  }, [exercise, showFingers, showColor, activeIdx, verdicts]);
 
   return <div ref={ref} className="staff" />;
 }

@@ -102,6 +102,22 @@ export function scoreCycle(exercise, played) {
   });
 }
 
+/** Summarize a cycle without changing the evaluator's verdicts or hit flag. */
+export function summarizeCycle(result) {
+  const verdicts = Array.isArray(result?.verdicts) ? result.verdicts : [];
+  const correct = verdicts.filter(({ verdict }) =>
+    verdict === "ok" || verdict === "early" || verdict === "late").length;
+  const total = verdicts.length;
+  return {
+    correct,
+    total,
+    percent: total ? Math.round(correct / total * 100) : 0,
+    wrong: verdicts.filter(({ verdict }) => verdict === "wrong").length,
+    missed: verdicts.filter(({ verdict }) => verdict === "missed").length,
+    extras: Number.isFinite(result?.extras) ? result.extras : 0,
+  };
+}
+
 export function speedProgress(saved = {}) {
   const bpm = Number.isFinite(saved?.bpm) ? Math.min(120, Math.max(5, saved.bpm)) : 20;
   const bestBpm = Number.isFinite(saved?.bestBpm)
