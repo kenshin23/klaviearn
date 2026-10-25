@@ -262,13 +262,16 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
         <div className={`staff-card size-${staffSize}`}>
           <TechniqueStaff exercise={exercise} showFingers={showFingers} showColor={showColor} activeIdx={activeIdx} />
         </div>
-        <ol className="arpeggio-sequence" aria-label={t("Note and finger sequence")}>
-          {exercise.notes.map((note, index) => (
-            <li key={`${index}-${note.midi}`} className={activeIdx === index ? "is-active" : ""}>
-              <span>{note.letter}{note.acc}{Math.floor(note.midi / 12) - 1}</span>{showFingers && <span>{t("finger")} {exercise.fingers[index]}</span>}
-            </li>
-          ))}
-        </ol>
+        <details className="arpeggio-sequence-panel">
+          <summary>{t("Note and finger sequence")}</summary>
+          <ol className="arpeggio-sequence" aria-label={t("Note and finger sequence")}>
+            {exercise.notes.map((note, index) => (
+              <li key={`${index}-${note.midi}`} className={activeIdx === index ? "is-active" : ""}>
+                <span>{note.letter}{note.acc}{Math.floor(note.midi / 12) - 1}</span>{showFingers && <span>{t("finger")} {exercise.fingers[index]}</span>}
+              </li>
+            ))}
+          </ol>
+        </details>
 
         <div className="arpeggio-stats" aria-label={t("Practice stats")}>
           <div><span>{t("Current speed")}</span><strong>{currentBpm} {t("cycles/min")}</strong></div>

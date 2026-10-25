@@ -39,7 +39,9 @@ describe("arpeggio practice screen", () => {
   it("shows the exact sequence and available MIDI keyboard", () => {
     render(<Harness />);
     expect(screen.getByText("Settings").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Note and finger sequence").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByRole("heading", { name: "Arpeggio speed trainer" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Note and finger sequence"));
     expect(screen.getByRole("list", { name: "Note and finger sequence" }).children).toHaveLength(16);
     expect(screen.getByText(/^MIDI devices: Test keyboard$/)).toHaveClass("arpeggio-midi");
     expect(startMidiListener).toHaveBeenCalledTimes(1);
@@ -259,6 +261,7 @@ it.each([
   expect(screen.getByTestId("staff")).toHaveAttribute("data-fingers", String(fingers));
   expect(screen.getByTestId("staff")).toHaveAttribute("data-color", String(color));
   expect(screen.getByTestId("staff").parentElement).toHaveClass("staff-card", "size-huge");
+  fireEvent.click(screen.getByText("Note and finger sequence"));
   const sequence = screen.getByRole("list", { name: "Note and finger sequence" });
   expect(sequence.children[0]).toHaveTextContent("Db2");
   expect(sequence.textContent.includes("finger")).toBe(fingers);

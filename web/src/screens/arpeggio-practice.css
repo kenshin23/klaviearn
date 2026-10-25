@@ -31,14 +31,14 @@
   margin: .9rem 0 1.4rem;
 }
 
-.arpeggio-settings summary {
+.arpeggio-settings summary, .arpeggio-sequence-panel summary {
   width: fit-content;
   color: var(--gold);
   font-weight: 700;
   cursor: pointer;
 }
 
-.arpeggio-settings summary:focus-visible {
+.arpeggio-settings summary:focus-visible, .arpeggio-sequence-panel summary:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 4px;
   border-radius: .2rem;
@@ -73,6 +73,8 @@
   margin: .8rem 0 1.2rem;
   list-style: none;
 }
+
+.arpeggio-sequence-panel { margin-top: .8rem; }
 
 .arpeggio-sequence li {
   display: grid;
