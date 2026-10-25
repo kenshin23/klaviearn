@@ -19,6 +19,13 @@ const send = (input, note, { status = NOTE_ON, velocity = 100 } = {}) =>
 /** Let the requestMIDIAccess promise settle so inputs are wired. */
 const wired = () => Promise.resolve();
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -220,11 +227,36 @@ describe("cleanup", () => {
     expect(onChord).not.toHaveBeenCalled();
   });
 
-  it("is safe to call before access resolves", async () => {
-    fakeMidiAccess();
-    const stop = startMidiListener({ onNote: vi.fn() });
+  it("does not wire devices or deliver events when access resolves after cleanup", async () => {
+    const request = deferred();
+    navigator.requestMIDIAccess = vi.fn(() => request.promise);
+    const input = { name: "Fake Piano", onmidimessage: null };
+    const access = { inputs: new Map([["0", input]]), onstatechange: null };
+    const onNote = vi.fn();
+    const onDevices = vi.fn();
+    const stop = startMidiListener({ onNote, onDevices });
     expect(() => stop()).not.toThrow();
+
+    request.resolve(access);
     await wired();
+
+    expect(onDevices).not.toHaveBeenCalled();
+    expect(access.onstatechange).toBeNull();
+    expect(input.onmidimessage).toBeNull();
+    expect(onNote).not.toHaveBeenCalled();
+  });
+
+  it("does not report a denied request after cleanup", async () => {
+    const request = deferred();
+    navigator.requestMIDIAccess = vi.fn(() => request.promise);
+    const onDevices = vi.fn();
+    const stop = startMidiListener({ onNote: vi.fn(), onDevices });
+    stop();
+
+    request.reject(new Error("denied"));
+    await wired();
+
+    expect(onDevices).not.toHaveBeenCalled();
   });
 });
 

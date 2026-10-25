@@ -40,8 +40,10 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
     const renderer = new Renderer(div, Renderer.Backends.SVG);
     renderer.resize(W, H);
     const ctx = renderer.getContext();
+    const systemGroups = [];
 
     lines.forEach(([from, to], line) => {
+      systemGroups.push(ctx.openGroup("technique-system"));
       const stave = new Stave(8, 30 + line * 120, W - 16);
       stave.addClef(exercise.clef);
       // The signature says it once at the front of each system, so the notes
@@ -68,10 +70,53 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
         return sn;
       });
       Formatter.FormatAndDraw(ctx, stave, staveNotes);
+      ctx.closeGroup();
     });
 
     const svg = div.querySelector("svg");
-    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    // High octave ranges can make neighboring systems overlap. Measure each
+    // system and move it down far enough to leave a readable gap. jsdom does
+    // not implement getBBox(), so the original stave positions remain the
+    // fallback when geometry measurement is unavailable.
+    let previousBottom = null;
+    systemGroups.forEach((group) => {
+      if (typeof group.getBBox !== "function") return;
+      try {
+        const { y, height } = group.getBBox();
+        if (![y, height].every(Number.isFinite) || height <= 0) return;
+        if (previousBottom !== null) {
+          const gap = 24;
+          const shift = Math.max(0, previousBottom + gap - y);
+          if (shift > 0) group.setAttribute("transform", `translate(0 ${shift})`);
+          previousBottom = y + height + shift;
+        } else {
+          previousBottom = y + height;
+        }
+      } catch {
+        // Leave this system at its nominal position if it cannot be measured.
+      }
+    });
+
+    // VexFlow can place ledger lines, stems and finger annotations beyond the
+    // nominal canvas. Fit the SVG to all rendered content, including any
+    // translated systems. Keep the nominal viewBox if measurement is absent.
+    let viewBox = `0 0 ${W} ${H}`;
+    if (typeof svg.getBBox === "function") {
+      try {
+        const { x, y, width, height } = svg.getBBox();
+        if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
+          const padding = 8;
+          const left = Math.min(0, x - padding);
+          const top = Math.min(0, y - padding);
+          const right = Math.max(W, x + width + padding);
+          const bottom = Math.max(H, y + height + padding);
+          viewBox = `${left} ${top} ${right - left} ${bottom - top}`;
+        }
+      } catch {
+        // Keep the nominal bounds if the browser cannot measure the SVG yet.
+      }
+    }
+    svg.setAttribute("viewBox", viewBox);
     svg.removeAttribute("width");
     svg.removeAttribute("height");
     svg.style.width = "100%";

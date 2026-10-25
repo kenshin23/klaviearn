@@ -16,6 +16,7 @@ export function startMidiListener({ onNote, onChord, onDevices, chordWindowMs = 
     return () => {};
   }
   let access;
+  let stopped = false;
 
   // Chord buffer: the first note-on opens a window; everything inside it
   // flushes together. A note held past the window is not re-sent — only
@@ -48,10 +49,16 @@ export function startMidiListener({ onNote, onChord, onDevices, chordWindowMs = 
     onDevices?.(names);
   };
   navigator.requestMIDIAccess().then(
-    a => { access = a; access.onstatechange = wire; wire(); },
-    () => onDevices?.(null),
+    a => {
+      if (stopped) return;
+      access = a;
+      access.onstatechange = wire;
+      wire();
+    },
+    () => { if (!stopped) onDevices?.(null); },
   );
   return () => {
+    stopped = true;
     clearTimeout(timer);
     timer = null;
     pending = [];

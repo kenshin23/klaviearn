@@ -6,6 +6,7 @@ import Grades from "./screens/Grades.jsx";
 
 // Session pulls in VexFlow (~1MB) — load it only when practice starts.
 const Session = lazy(() => import("./screens/Session.jsx"));
+const ArpeggioPractice = lazy(() => import("./screens/ArpeggioPractice.jsx"));
 import { api, getToken, setToken } from "./lib/api.js";
 import { SKILL_NODES } from "./lib/notes.js";
 import { buildSession } from "./lib/session.js";
@@ -155,6 +156,18 @@ export default function App() {
     return <Grades onHome={() => setScreen({ name: "home" })} />;
   }
 
+  if (screen.name === "arpeggio") {
+    return (
+      <Suspense fallback={<main className="screen"><p className="status">…</p></main>}>
+        <ArpeggioPractice
+          settings={settings}
+          onSettings={updateSettings}
+          onHome={() => setScreen({ name: "home" })}
+        />
+      </Suspense>
+    );
+  }
+
   if (screen.name === "session") {
     return (
       <Suspense fallback={<main className="screen"><p className="status">…</p></main>}>
@@ -179,6 +192,7 @@ export default function App() {
       settings={settings}
       onSettings={updateSettings}
       onStart={startSession}
+      onArpeggios={() => setScreen({ name: "arpeggio" })}
       onStats={online ? () => setScreen({ name: "stats" }) : null}
       onGrades={online ? () => setScreen({ name: "grades" }) : null}
       onLogout={online ? () => { setToken(null); setMe(null); setTree(null); setAuth({ status: "choose" }); } : null}

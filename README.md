@@ -88,6 +88,20 @@ npm run dev
 # open http://localhost:5173 in Chrome (Safari has no Web MIDI)
 ```
 
+## Arpeggio speed practice
+
+Open **Technique → Build arpeggio speed** to practise repeated whole-pattern
+cycles. The first preset is a left-hand D-flat major arpeggio with explicit
+fingering and a repeated top note. Choose its starting octave and build speed
+after a configurable number of clean cycles. A tempo of **20 cycles/min** means
+the entire 16-note ascent and descent takes **3 seconds**, rather than one note
+per metronome beat.
+
+This mode checks exact MIDI pitches, octaves and timing. Its saved speed is
+separate from curriculum mastery and XP. See
+[the practice guide](docs/arpeggio-speed-practice.md) for timing, input and
+preset details.
+
 ## Development
 
 `make help` lists everything. The essentials:
