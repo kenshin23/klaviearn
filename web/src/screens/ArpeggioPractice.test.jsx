@@ -19,6 +19,8 @@ vi.mock("../lib/midi.js", () => ({ startMidiListener: vi.fn(options => {
 
 const { createArpeggioClock } = await import("../lib/arpeggioClock.js");
 const { startMidiListener } = await import("../lib/midi.js");
+const CYCLE_BPM_FOR_20_NOTES_PER_MINUTE = 20 / makeArpeggio().midis.length;
+const CYCLE_BPM_FOR_30_NOTES_PER_MINUTE = 30 / makeArpeggio().midis.length;
 
 function Harness({ initial = {} }) {
   const [settings, setSettings] = useState(initial);
@@ -111,28 +113,98 @@ describe("arpeggio practice screen", () => {
     render(<Harness initial={{ arpeggioPractice: { cleanTarget: 2 } }} />);
     await user.click(screen.getByRole("button", { name: "Start practice" }));
     const { options } = createArpeggioClock.mock.results[0].value;
-    expect(options.bpm).toBe(20);
-    options.onCycle({ hit: true, bpm: 20, verdicts: [], extras: 0 });
+    expect(options.bpm).toBe(CYCLE_BPM_FOR_20_NOTES_PER_MINUTE);
+    options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE, verdicts: [], extras: 0 });
     await waitFor(() => expect(screen.getByText("1/2")).toBeInTheDocument());
-    options.onCycle({ hit: true, bpm: 20, verdicts: [], extras: 0 });
-    await waitFor(() => expect(screen.getByText("21 cycles/min")).toBeInTheDocument());
+    options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE, verdicts: [], extras: 0 });
+    await waitFor(() => expect(screen.getByText("24 bpm")).toBeInTheDocument());
     expect(screen.getByText("0/2")).toBeInTheDocument();
-    expect(screen.getByText("20 cycles/min")).toBeInTheDocument();
+    expect(screen.getByText("20 bpm")).toBeInTheDocument();
     expect(screen.getByText("Clean cycle. Keep going.")).toBeInTheDocument();
+  });
+
+  it("migrates legacy cycle tempo once and keeps count-in at four note clicks", async () => {
+    const user = userEvent.setup();
+    const legacy = { arpeggioPractice: { cleanTarget: 1, progress: {
+      "db-major-lh:2": { bpm: 5, bestBpm: 6 },
+    } } };
+    let currentSettings = legacy;
+    const onSettings = vi.fn(updater => { currentSettings = updater(currentSettings); return currentSettings; });
+    const { rerender } = render(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    expect(screen.getByText("75 bpm")).toBeInTheDocument();
+    expect(screen.getByText("90 bpm")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    const { options } = createArpeggioClock.mock.results[0].value;
+    expect(options.bpm).toBe(5);
+    expect(options.countInSeconds).toBeCloseTo(3.2);
+    let returnedCycleBpm;
+    await act(async () => { returnedCycleBpm = options.onCycle({ hit: true, bpm: 5 }); });
+    expect(returnedCycleBpm).toBe(79 / makeArpeggio().midis.length);
+    expect(currentSettings.arpeggioPractice).toMatchObject({
+      tempoUnit: "note-bpm", progress: { "db-major-lh:2": { bpm: 79, bestBpm: 90 } },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    expect(screen.getByText("79 bpm")).toBeInTheDocument();
+  });
+
+  it("supports fractional increases and repeated 20 to 24 to 28 note BPM steps", async () => {
+    const user = userEvent.setup();
+    const initial = { arpeggioPractice: { cleanTarget: 1 } };
+    let currentSettings = initial;
+    const onSettings = vi.fn(updater => { currentSettings = updater(currentSettings); return currentSettings; });
+    const { rerender } = render(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    await openSettings(user);
+    const increase = screen.getByLabelText("Tempo increase (BPM)");
+    fireEvent.change(increase, { target: { value: "0.5" } });
+    expect(onSettings.mock.results[0].value.arpeggioPractice.stepBpm).toBe(0.5);
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    fireEvent.change(screen.getByLabelText("Tempo increase (BPM)"), { target: { value: "4" } });
+    expect(currentSettings.arpeggioPractice.stepBpm).toBe(4);
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+    const first = createArpeggioClock.mock.results[0].value.options;
+    await act(async () => first.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE }));
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    expect(screen.getByText("24 bpm")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+    const second = createArpeggioClock.mock.results[1].value.options;
+    expect(second.bpm).toBe(24 / makeArpeggio().midis.length);
+    await act(async () => second.onCycle({ hit: true, bpm: second.bpm }));
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    expect(screen.getByText("28 bpm")).toBeInTheDocument();
+  });
+
+  it("applies a fractional 0.5 BPM increase to the persisted note tempo", async () => {
+    const initial = { arpeggioPractice: { tempoUnit: "note-bpm", cleanTarget: 1, stepBpm: 0.5 } };
+    let currentSettings = initial;
+    const onSettings = vi.fn(updater => { currentSettings = updater(currentSettings); return currentSettings; });
+    const { rerender } = render(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
+    const options = createArpeggioClock.mock.results[0].value.options;
+    let returnedCycleBpm;
+    await act(async () => {
+      returnedCycleBpm = options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE });
+    });
+    rerender(<ArpeggioPractice settings={currentSettings} onSettings={onSettings} />);
+    expect(currentSettings.arpeggioPractice.progress["db-major-lh:2"].bpm).toBe(20.5);
+    expect(returnedCycleBpm).toBe(20.5 / makeArpeggio().midis.length);
+    expect(screen.getByText("20.5 bpm")).toBeInTheDocument();
   });
 
   it("resets clean streak after a miss without changing best speed", async () => {
     const user = userEvent.setup();
     render(<Harness initial={{ arpeggioPractice: {
-      cleanTarget: 3, progress: { "db-major-lh:2": { bpm: 30, bestBpm: 25 } },
+      tempoUnit: "note-bpm", cleanTarget: 3, progress: { "db-major-lh:2": { bpm: 30, bestBpm: 25 } },
     } }} />);
     await user.click(screen.getByRole("button", { name: "Start practice" }));
     const { options } = createArpeggioClock.mock.results[0].value;
-    options.onCycle({ hit: true, bpm: 30, verdicts: [], extras: 0 });
+    options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_30_NOTES_PER_MINUTE, verdicts: [], extras: 0 });
     await waitFor(() => expect(screen.getByText("1/3")).toBeInTheDocument());
-    options.onCycle({ hit: false, bpm: 30, verdicts: [{ verdict: "missed" }], extras: 0 });
+    options.onCycle({ hit: false, bpm: CYCLE_BPM_FOR_30_NOTES_PER_MINUTE, verdicts: [{ verdict: "missed" }], extras: 0 });
     await waitFor(() => expect(screen.getByText("0/3")).toBeInTheDocument());
-    expect(screen.getByText("25 cycles/min")).toBeInTheDocument();
+    expect(screen.getByText("25 bpm")).toBeInTheDocument();
     expect(screen.getByText("Some notes were missed. Try the cycle again.")).toBeInTheDocument();
   });
 
@@ -170,7 +242,7 @@ describe("arpeggio practice screen", () => {
     const verdicts = Array.from({ length: 15 }, () => ({ verdict: "ok" }));
     await act(async () => {
       options.onFeedback({ cycleId: 1, verdicts, correct: 15, total: 15, percent: 100, extras: 0 });
-      options.onCycle({ hit: false, bpm: 20, verdicts, correct: 15, total: 15, percent: 100, extras: 1 });
+      options.onCycle({ hit: false, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE, verdicts, correct: 15, total: 15, percent: 100, extras: 1 });
       options.onFeedback({ cycleId: 2, verdicts: verdicts.map(() => ({ verdict: "pending" })),
         correct: 0, total: 15, percent: 0, extras: 0 });
     });
@@ -193,7 +265,7 @@ describe("arpeggio practice screen", () => {
     await user.click(screen.getByRole("button", { name: "Start practice" }));
     const { options } = createArpeggioClock.mock.results[0].value;
     const verdicts = Array.from({ length: 15 }, () => ({ verdict: "ok" }));
-    await act(async () => options.onCycle({ hit: true, bpm: 20, verdicts,
+    await act(async () => options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE, verdicts,
       correct: 15, total: 15, percent: 100, extras: 0 }));
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await openSettings(user);
@@ -242,20 +314,20 @@ describe("arpeggio practice screen", () => {
 
 
 describe("arpeggio session controls", () => {
-  it("edits bounded tempo while preserving best speed and other patterns", () => {
-    const settings = { arpeggioPractice: { progress: {
+  it("edits bounded note tempo while preserving best speed and other patterns", () => {
+    const settings = { arpeggioPractice: { tempoUnit: "note-bpm", progress: {
       "db-major-lh:2": { bpm: 30, bestBpm: 45 }, other: { bpm: 60, bestBpm: 55 },
     } } };
     const onSettings = vi.fn(updater => updater(settings));
     render(<ArpeggioPractice settings={settings} onSettings={onSettings} />);
     fireEvent.click(screen.getByText("Settings"));
-    const tempo = screen.getByLabelText("Starting speed (cycles/min)");
-    fireEvent.change(tempo, { target: { value: "200" } });
+    const tempo = screen.getByLabelText("Note tempo (BPM)");
+    fireEvent.change(tempo, { target: { value: "2000" } });
     expect(onSettings.mock.results[0].value.arpeggioPractice.progress).toEqual({
-      "db-major-lh:2": { bpm: 120, bestBpm: 45 }, other: { bpm: 60, bestBpm: 55 },
+      "db-major-lh:2": { bpm: 1800, bestBpm: 45 }, other: { bpm: 60, bestBpm: 55 },
     });
     fireEvent.change(tempo, { target: { value: "1" } });
-    expect(onSettings.mock.results[1].value.arpeggioPractice.progress["db-major-lh:2"].bpm).toBe(5);
+    expect(onSettings.mock.results[1].value.arpeggioPractice.progress["db-major-lh:2"].bpm).toBe(20);
   });
 
   it("counts consecutive callbacks before a render and reports accepted timing as clean", async () => {
@@ -266,11 +338,11 @@ describe("arpeggio session controls", () => {
     const { options } = createArpeggioClock.mock.results[0].value;
     await act(async () => {
       for (let index = 0; index < 5; index++) {
-        options.onCycle({ hit: true, bpm: 20, verdicts: [{ verdict: "early" }], extras: 0 });
+        options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE, verdicts: [{ verdict: "early" }], extras: 0 });
       }
     });
-    expect(screen.getByLabelText("Starting speed (cycles/min)")).toHaveValue(21);
-    expect(screen.getByText("20 cycles/min")).toBeInTheDocument();
+    expect(screen.getByLabelText("Note tempo (BPM)")).toHaveValue(24);
+    expect(screen.getByText("20 bpm")).toBeInTheDocument();
     expect(screen.getByText("0/5")).toBeInTheDocument();
     expect(screen.getByText("Clean cycle. Keep going.")).toBeInTheDocument();
   });
@@ -282,7 +354,7 @@ describe("arpeggio session controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     const first = createArpeggioClock.mock.results[0].value;
     await act(async () => {
-      for (let index = 0; index < 4; index++) first.options.onCycle({ hit: true, bpm: 20 });
+      for (let index = 0; index < 4; index++) first.options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE });
     });
     expect(screen.getByText("4/5")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
@@ -290,11 +362,11 @@ describe("arpeggio session controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     const second = createArpeggioClock.mock.results[1].value;
     await act(async () => {
-      first.options.onCycle({ hit: true, bpm: 20 });
-      second.options.onCycle({ hit: true, bpm: 20 });
+      first.options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE });
+      second.options.onCycle({ hit: true, bpm: CYCLE_BPM_FOR_20_NOTES_PER_MINUTE });
     });
     expect(screen.getByText("1/5")).toBeInTheDocument();
-    expect(screen.getByLabelText("Starting speed (cycles/min)")).toHaveValue(20);
+    expect(screen.getByLabelText("Note tempo (BPM)")).toHaveValue(20);
   });
 
   it("locks a pending start and cancels it on Home without accepting late callbacks", async () => {
@@ -305,7 +377,7 @@ describe("arpeggio session controls", () => {
     render(<ArpeggioPractice settings={{}} onSettings={vi.fn()} onHome={onHome} />);
     fireEvent.click(screen.getByText("Settings"));
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
-    expect(screen.getByLabelText("Starting speed (cycles/min)")).toBeDisabled();
+    expect(screen.getByLabelText("Note tempo (BPM)")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Start practice" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "← Home" }));
     expect(clock.stop).toHaveBeenCalled();
@@ -336,7 +408,7 @@ describe("arpeggio session controls", () => {
     const { options } = createArpeggioClock.mock.results[0].value;
     await act(async () => { options.onPhase("idle"); });
     expect(screen.getByRole("button", { name: "Start practice" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Starting speed (cycles/min)")).toBeEnabled();
+    expect(screen.getByLabelText("Note tempo (BPM)")).toBeEnabled();
     expect(screen.getByText("Stopped")).toBeInTheDocument();
   });
 });

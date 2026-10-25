@@ -6,13 +6,16 @@ const LOOKAHEAD_SECONDS = 0.1;
 const MAX_LAG_SECONDS = 0.5;
 
 export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefined,
-  onStep = () => {}, onPhase = () => {}, onFeedback = () => {}, subdivisions = 4 }) {
+  onStep = () => {}, onPhase = () => {}, onFeedback = () => {}, subdivisions = 4, countInSeconds }) {
   if (!exercise || !Array.isArray(exercise.midis) || exercise.midis.length < 2) {
     throw new TypeError("An arpeggio exercise with at least two notes is required");
   }
   if (!Number.isFinite(bpm) || bpm <= 0) throw new RangeError("bpm must be positive");
   if (!Number.isInteger(subdivisions) || subdivisions < 1) {
     throw new RangeError("subdivisions must be a positive integer");
+  }
+  if (countInSeconds !== undefined && (!Number.isFinite(countInSeconds) || countInSeconds <= 0)) {
+    throw new RangeError("countInSeconds must be positive");
   }
   let running = false, timer = null, ctx, generation = 0, pending = null;
   let anchorAudio, anchorPerf, playStart, cycleStart, duration, currentBpm;
@@ -143,7 +146,7 @@ export function createArpeggioClock({ exercise, bpm = 20, onCycle = () => undefi
       anchorAudio = ctx.currentTime + 0.05;
       anchorPerf = perfTimeFor(ctx, anchorAudio);
       currentBpm = bpm; duration = 60 / bpm;
-      playStart = anchorAudio + duration; cycleStart = playStart;
+      playStart = anchorAudio + (countInSeconds ?? duration); cycleStart = playStart;
       countClick = 0; subdivision = 0; boundaryScheduled = false;
       played = []; upcoming = [];
       cycleId++; lastInput = null; lastFeedback = null;

@@ -155,7 +155,7 @@ describe("arpeggio speed labels", () => {
   it("translates the new entry and practice controls", () => {
     setLocale("es", "letters");
     expect(t("Arpeggio speed trainer")).toBe("Entrenador de velocidad de arpegios");
-    expect(t("Starting speed (cycles/min)")).toBe("Velocidad inicial (ciclos/min)");
+    expect(t("Note tempo (BPM)")).toBe("Tempo por nota (PPM)");
     expect(t("▶ Build arpeggio speed")).toBe("▶ Aumenta la velocidad de arpegios");
     expect(t("Clean cycle. Keep going.")).toBe("Ciclo correcto. Sigue así.");
     expect(t("Each note")).toBe("Cada nota");

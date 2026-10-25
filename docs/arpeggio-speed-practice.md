@@ -5,26 +5,27 @@ browser supporting Web MIDI, select the starting octave, and press Start.
 The screen reports connected devices and shows the written notes and fingers.
 MIDI measures which keys were played; finger numbers are a visual guide.
 
-## Whole-pattern tempo
+## Tempo in BPM per note
 
-The tempo unit is **cycles per minute**: one complete ascent and descent fits
-between accented clicks. At 20 cycles/min, a cycle lasts 3 seconds. With 15
-attacks, the note spacing is 200 milliseconds (5 notes/second).
-The count-in has four pulses across one cycle. By default, the click sounds on
-every note onset; choose four subdivisions or one beat per cycle in the click
-menu if you prefer fewer clicks.
+**Note tempo (BPM)** controls individual note attacks. At 75 BPM, one note
+arrives every 0.8 seconds, and the 15-note pattern repeats every 12 seconds.
+At 20 BPM, one note arrives every 3 seconds and a pass lasts 45 seconds.
+The count-in is four note beats at the selected tempo. The default **Each
+note** click follows every attack; **Whole pass** and **Four clicks per pass**
+are also available.
 
-Cycles continue without a restart gap. Every requested pitch and octave must
+Passes continue without a restart gap. Every requested pitch and octave must
 be played in order, within a timing window scaled to the note spacing, without
 extra notes. The global relaxed-octave preference does not apply in this mode.
-Playing the right pitches in a burst at the start of the cycle does not pass.
+Playing the right pitches in a burst at the start of the pass does not count.
 
-By default, five consecutive clean cycles confirm the current tempo and raise
-it by one cycle/min. A mistake resets the clean streak and keeps the tempo.
-The tempo, increment and required clean-cycle count are configurable. Best
-speed means a tempo confirmed by the full required streak, not one lucky cycle.
-Stopping partway through a cycle does not record it. Leaving the screen or
-hiding the browser tab stops practice.
+By default, five consecutive clean passes confirm the current tempo and raise
+it by **4 BPM**: for example, **20 → 24 → 28 BPM**. **Tempo increase (BPM)**
+lets you choose a smaller or larger step, including half-BPM increments.
+A mistake resets the clean streak and keeps the tempo. Tempo, increment and
+required clean-pass count are configurable. Best speed means a tempo confirmed
+by the full required streak, not one lucky pass. Stopping partway through a
+pass does not record it. Leaving the screen or hiding the tab stops practice.
 
 ## First preset
 
@@ -68,6 +69,11 @@ existing settings mechanism: browser storage for guests and account settings
 for members. Each preset and starting octave has its own progress. A partial
 clean streak is not restored after leaving practice. Curriculum sessions,
 spaced-repetition items, XP and account schemas are unchanged.
+
+Existing cycle-based speeds are converted automatically while preserving the
+playing pace and confirmed record. For this 15-note preset, the old 5 cycles/min
+becomes 75 note BPM, and 6 becomes 90. The conversion is versioned so reopening
+practice does not apply it again. The new default increase is 4 note BPM.
 
 ## Adding presets
 

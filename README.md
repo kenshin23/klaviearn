@@ -93,9 +93,11 @@ npm run dev
 Open **Technique → Build arpeggio speed** to practise repeated whole-pattern
 cycles. The first preset is a left-hand D-flat major arpeggio with explicit
 fingering and one top note before the descent. Choose its starting octave and
-build speed after a configurable number of clean cycles. A tempo of **20
-cycles/min** means the entire 15-note ascent and descent takes **3 seconds**,
-with a note every 200 ms, rather than one note per metronome beat.
+build speed after a configurable number of clean passes. Tempo is **BPM per
+note**: at 75 BPM, a note arrives every 0.8 seconds and the 15-note pattern
+repeats every 12 seconds. The default increase is **4 BPM**, with smaller or
+larger steps available. Existing saved cycle-based speeds are converted to
+note BPM without changing the playing pace.
 
 This mode checks exact MIDI pitches, octaves and timing. Its saved speed is
 separate from curriculum mastery and XP. See

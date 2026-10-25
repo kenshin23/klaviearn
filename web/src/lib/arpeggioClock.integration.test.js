@@ -250,3 +250,85 @@ it("publishes partial credit and extras immediately and agrees with the final sa
   expect(finalSnapshot.verdicts.slice(1).every(({ verdict }) => verdict === "missed")).toBe(true);
   clock.stop();
 });
+
+
+it("counts four note beats and keeps note-BPM grids through 20 to 24 to 28", async () => {
+  const exercise = makeArpeggio();
+  const noteCount = exercise.midis.length;
+  expect(noteCount).toBe(15);
+  const results = [];
+  const clock = createArpeggioClock({
+    exercise,
+    bpm: 20 / noteCount,
+    countInSeconds: 4 * 60 / 20,
+    subdivisions: noteCount,
+    onCycle: result => {
+      results.push(result);
+      return (results.length === 1 ? 24 : 28) / noteCount;
+    },
+  });
+  await clock.start();
+  await advance(12000);
+
+  const anchor = 10.05;
+  const firstPlay = anchor + 12;
+  for (let i = 0; i < 4; i++) expect(hasClick(anchor + i * 3, i === 0)).toBe(true);
+  expect(hasClick(firstPlay, true)).toBe(true);
+
+  const secondPlay = firstPlay + 45;
+  const thirdPlay = secondPlay + 37.5;
+  await advance((secondPlay - 10) * 1000 + 40 - performance.now());
+  expect(results.map(result => result.bpm)).toEqual([20 / noteCount]);
+  expect(hasClick(secondPlay, true)).toBe(true);
+  await advance((thirdPlay - 10) * 1000 + 40 - performance.now());
+  expect(results.map(result => result.bpm)).toEqual([20 / noteCount, 24 / noteCount]);
+  expect(hasClick(thirdPlay, true)).toBe(true);
+
+  await advance((thirdPlay + 32.2 - 10) * 1000 - performance.now());
+  expect(results.map(result => result.bpm)).toEqual([20 / noteCount, 24 / noteCount, 28 / noteCount]);
+  const scheduled = audio.click.mock.calls.filter(([at]) => at >= firstPlay && at <= thirdPlay + 32.2);
+  const expectedTimes = [
+    ...Array.from({ length: noteCount }, (_, i) => firstPlay + i * 3),
+    ...Array.from({ length: noteCount }, (_, i) => secondPlay + i * 2.5),
+    ...Array.from({ length: noteCount }, (_, i) => thirdPlay + i * (60 / 28)),
+    thirdPlay + 32.142857142857146,
+  ];
+  expect(scheduled).toHaveLength(expectedTimes.length);
+  scheduled.forEach(([at], index) => expect(at).toBeCloseTo(expectedTimes[index], 8));
+  clock.stop();
+});
+
+it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])("rejects invalid count-in duration %s", countInSeconds => {
+  expect(() => createArpeggioClock({ exercise: makeArpeggio(), countInSeconds }))
+    .toThrow(RangeError);
+});
+
+
+it("preserves the old five-cycle pace as 75 note BPM with a four-note count-in", async () => {
+  const exercise = makeArpeggio();
+  const results = [];
+  const clock = createArpeggioClock({
+    exercise, bpm: 75 / exercise.midis.length, countInSeconds: 4 * 60 / 75,
+    subdivisions: exercise.midis.length,
+    onCycle: result => { results.push(result); },
+  });
+  await clock.start();
+  for (let i = 0; i < exercise.midis.length; i++) {
+    const at = 3250 + i * 800;
+    await advance(at - performance.now());
+    clock.record(exercise.midis[i]);
+  }
+  await advance(15250 - performance.now());
+  clock.record(exercise.midis[0]);
+  await advance(50);
+  expect(results).toHaveLength(1);
+  expect(results[0]).toMatchObject({ bpm: 5, hit: true, correct: 15, total: 15, percent: 100 });
+  const times = audio.click.mock.calls.map(([at]) => at);
+  const expected = [
+    ...Array.from({ length: 4 }, (_, i) => 10.05 + i * 0.8),
+    ...Array.from({ length: 16 }, (_, i) => 13.25 + i * 0.8),
+  ];
+  expect(times).toHaveLength(expected.length);
+  times.forEach((at, index) => expect(at).toBeCloseTo(expected[index], 8));
+  clock.stop();
+});

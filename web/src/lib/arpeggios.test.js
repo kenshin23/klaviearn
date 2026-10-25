@@ -1,6 +1,7 @@
 import {
   advanceSpeed, ARPEGGIO_PRESETS, expectedCycle, makeArpeggio, scoreCycle,
-  speedKey, speedProgress, summarizeCycle,
+  DEFAULT_NOTE_BPM, DEFAULT_STEP_BPM, NOTE_BPM_MAX, NOTE_BPM_MIN,
+  normalizePracticeSettings, speedKey, speedProgress, summarizeCycle, tempoForExercise,
 } from "./arpeggios.js";
 
 const exercise = makeArpeggio();
@@ -75,8 +76,10 @@ describe("Db major arpeggio model", () => {
 describe("speed progression", () => {
   it("sanitizes saved values and ignores persisted streak", () => {
     expect(speedProgress()).toEqual({ bpm: 20, bestBpm: 0, streak: 0 });
-    expect(speedProgress({ bpm: 500, bestBpm: -3, streak: 99 })).toEqual({ bpm: 120, bestBpm: 0, streak: 0 });
+    expect(speedProgress({ bpm: 5000, bestBpm: -3, streak: 99 })).toEqual({ bpm: 1800, bestBpm: 0, streak: 0 });
     expect(speedProgress({ bpm: "fast", bestBpm: NaN })).toEqual({ bpm: 20, bestBpm: 0, streak: 0 });
+    expect(speedProgress({ bpm: 23.5, bestBpm: 22.25 })).toEqual({ bpm: 23.5, bestBpm: 22.25, streak: 0 });
+    expect([NOTE_BPM_MIN, NOTE_BPM_MAX, DEFAULT_NOTE_BPM, DEFAULT_STEP_BPM]).toEqual([20, 1800, 20, 4]);
   });
 
   it("requires five clean cycles, resets after a miss, and records only confirmed speed", () => {
@@ -86,17 +89,76 @@ describe("speed progression", () => {
     progress = advanceSpeed(progress, false);
     expect(progress).toEqual({ bpm: 20, bestBpm: 0, streak: 0 });
     for (let i = 0; i < 5; i++) progress = advanceSpeed(progress, true);
-    expect(progress).toEqual({ bpm: 21, bestBpm: 20, streak: 0 });
+    expect(progress).toEqual({ bpm: 24, bestBpm: 20, streak: 0 });
     for (let i = 0; i < 5; i++) progress = advanceSpeed(progress, true);
-    expect(progress).toEqual({ bpm: 22, bestBpm: 21, streak: 0 });
+    expect(progress).toEqual({ bpm: 28, bestBpm: 24, streak: 0 });
   });
 
   it("caps speed and handles malformed progression configuration", () => {
-    let progress = { bpm: 120, bestBpm: 120, streak: 4 };
+    let progress = { bpm: 1799, bestBpm: 1799, streak: 4 };
     progress = advanceSpeed(progress, true, { stepBpm: 5, cleanTarget: 5 });
-    expect(progress).toEqual({ bpm: 120, bestBpm: 120, streak: 0 });
+    expect(progress).toEqual({ bpm: 1800, bestBpm: 1799, streak: 0 });
     expect(advanceSpeed({ bpm: 20 }, true, { stepBpm: NaN, cleanTarget: Infinity }))
       .toEqual({ bpm: 20, bestBpm: 0, streak: 1 });
+    expect(advanceSpeed({ bpm: 30, streak: 0 }, true, { stepBpm: 0.5, cleanTarget: 1 }))
+      .toEqual({ bpm: 30.5, bestBpm: 30, streak: 0 });
     expect(speedKey("db-major-lh", 2)).toBe("db-major-lh:2");
+  });
+});
+
+describe("tempo and saved settings", () => {
+  it("converts note BPM to cycle clock timing", () => {
+    expect(tempoForExercise(75, exercise)).toEqual({
+      noteBpm: 75, cycleBpm: 5, cycleSeconds: 12, noteSeconds: 0.8, countInSeconds: 3.2,
+    });
+    expect(() => tempoForExercise(75, { midis: [] })).toThrow(RangeError);
+    expect(() => tempoForExercise(75, {})).toThrow(RangeError);
+  });
+
+  it("migrates legacy progress per preset and octave without mutating settings", () => {
+    const raw = {
+      stepBpm: 1,
+      progress: {
+        "db-major-lh:1": { bpm: 5, bestBpm: 6, streak: 4, note: "kept" },
+        "db-major-lh:2": { bpm: 20, bestBpm: 0 },
+        "db-major-lh:3": { bpm: 121, bestBpm: 130 },
+        "future-preset:2": { bpm: 8, bestBpm: 7 },
+      },
+      unrelated: "kept",
+    };
+    const original = structuredClone(raw);
+    const normalized = normalizePracticeSettings(raw);
+    expect(normalized).toMatchObject({ tempoUnit: "note-bpm", stepBpm: 4, cleanTarget: 5 });
+    expect(normalized.progress).toEqual({
+      "db-major-lh:1": { bpm: 75, bestBpm: 90, streak: 4, note: "kept" },
+      "db-major-lh:2": { bpm: 300, bestBpm: 0 },
+      "db-major-lh:3": { bpm: 1800, bestBpm: 1800 },
+      "future-preset:2": { bpm: 8, bestBpm: 7 },
+    });
+    expect(raw).toEqual(original);
+    const migratedAgain = normalizePracticeSettings({ ...normalized });
+    expect(migratedAgain.progress).toEqual(normalized.progress);
+    expect(migratedAgain.stepBpm).toBe(4);
+    expect(normalizePracticeSettings({ progress: { "db-major-lh:2": { bpm: 0, bestBpm: 0 } } })
+      .progress["db-major-lh:2"]).toEqual({ bpm: 75, bestBpm: 0 });
+  });
+
+  it("preserves explicit note BPM and normalizes practice controls", () => {
+    expect(normalizePracticeSettings({
+      tempoUnit: "note-bpm",
+      presetId: "missing",
+      octave: 8,
+      stepBpm: 0.5,
+      cleanTarget: 1.8,
+      clickMode: "bad",
+      progress: { "db-major-lh:2": { bpm: 75, bestBpm: 60 } },
+    })).toEqual({
+      presetId: "db-major-lh", octave: 4, stepBpm: 0.5, cleanTarget: 1,
+      clickMode: "notes", tempoUnit: "note-bpm",
+      progress: { "db-major-lh:2": { bpm: 75, bestBpm: 60 } },
+    });
+    expect(normalizePracticeSettings({ tempoUnit: "note-bpm", stepBpm: 90 }).stepBpm).toBe(60);
+    expect(normalizePracticeSettings({ tempoUnit: "note-bpm", stepBpm: -5 }).stepBpm).toBe(0.5);
+    expect(normalizePracticeSettings({ tempoUnit: "note-bpm", stepBpm: 1 }).stepBpm).toBe(1);
   });
 });

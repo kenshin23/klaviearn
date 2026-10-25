@@ -1,29 +1,21 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import TechniqueStaff from "../components/TechniqueStaff.jsx";
 import {
-  advanceSpeed, ARPEGGIO_PRESETS, makeArpeggio, speedKey, speedProgress,
+  advanceSpeed, ARPEGGIO_PRESETS, makeArpeggio, normalizePracticeSettings, speedKey, speedProgress,
+  tempoForExercise,
 } from "../lib/arpeggios.js";
 import { createArpeggioClock } from "../lib/arpeggioClock.js";
 import { t } from "../lib/i18n.js";
 import { startMidiListener } from "../lib/midi.js";
 import "./arpeggio-practice.css";
 
-const validConfig = value => value && typeof value === "object" && !Array.isArray(value);
 const bounded = (value, fallback, min, max) => Number.isFinite(value)
   ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
+const boundedTempo = (value, fallback, min, max) => Number.isFinite(value)
+  ? Math.min(max, Math.max(min, value)) : fallback;
 
 function readConfig(settings) {
-  const raw = validConfig(settings?.arpeggioPractice) ? settings.arpeggioPractice : {};
-  const presetId = ARPEGGIO_PRESETS.some(preset => preset.id === raw.presetId)
-    ? raw.presetId : ARPEGGIO_PRESETS[0].id;
-  return {
-    presetId,
-    octave: bounded(raw.octave, 2, 1, 4),
-    stepBpm: bounded(raw.stepBpm, 1, 1, 10),
-    cleanTarget: bounded(raw.cleanTarget, 5, 1, 20),
-    clickMode: ["beat", "four", "notes"].includes(raw.clickMode) ? raw.clickMode : "notes",
-    progress: validConfig(raw.progress) ? raw.progress : {},
-  };
+  return normalizePracticeSettings(settings?.arpeggioPractice);
 }
 
 function feedbackFor(result) {
@@ -105,7 +97,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
       const old = readConfig(previous);
       return {
         ...previous,
-        arpeggioPractice: { ...old, ...patch, progress: old.progress },
+        arpeggioPractice: { ...old, ...patch, tempoUnit: "note-bpm", progress: old.progress },
       };
     });
   }, [onSettings]);
@@ -116,7 +108,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     if (streakRef.current.key !== live.key) streakRef.current = { key: live.key, streak: 0 };
     const previous = {
       ...runtimeRef.current,
-      bpm: bounded(result.bpm, runtimeRef.current.bpm, 5, 120),
+      bpm: boundedTempo(result.bpm, runtimeRef.current.bpm, 20, 1800),
       streak: streakRef.current.streak,
     };
     const next = advanceSpeed(previous, result.hit, {
@@ -134,6 +126,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
         ...current,
         arpeggioPractice: {
           ...old,
+          tempoUnit: "note-bpm",
           progress: { ...old.progress, [live.key]: { bpm: next.bpm, bestBpm: next.bestBpm } },
         },
       };
@@ -202,12 +195,21 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     setLastPass(null);
     setLivePass({ verdicts: exercise.midis.map(() => ({ verdict: "pending" })),
       correct: 0, total: exercise.midis.length, percent: 0, extras: 0, lastInput: null });
+    const tempo = tempoForExercise(progress.bpm, exercise);
     const clock = createArpeggioClock({
       exercise,
-      bpm: progress.bpm,
+      bpm: tempo.cycleBpm,
+      countInSeconds: tempo.countInSeconds,
       subdivisions: config.clickMode === "four" ? 4
         : config.clickMode === "beat" ? 1 : exercise.midis.length,
-      onCycle: result => isCurrent() ? liveRef.current?.persistCycle(result, result.bpm) : undefined,
+      onCycle: result => {
+        if (!isCurrent()) return undefined;
+        const current = liveRef.current;
+        if (!current) return undefined;
+        const noteBpm = result.bpm * current.exercise.midis.length;
+        return current.persistCycle({ ...result, bpm: noteBpm }, noteBpm)
+          / current.exercise.midis.length;
+      },
       onFeedback: snapshot => { if (isCurrent()) setLivePass(passSummary(snapshot, exercise.midis.length)); },
       onStep: index => { if (isCurrent()) setActiveIdx(index); },
       onPhase: (name, count) => {
@@ -232,8 +234,9 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   }
 
   const currentBpm = progress.bpm;
-  const duration = 60 / currentBpm;
-  const notesPerSecond = exercise.midis.length / duration;
+  const tempo = tempoForExercise(currentBpm, exercise);
+  const duration = tempo.cycleSeconds;
+  const notesPerSecond = currentBpm / 60;
   const showColor = settings.scaffold !== "plain";
   const showFingers = settings.scaffold !== "plain" && settings.scaffold !== "colors";
   const staffSize = ["medium", "large", "huge"].includes(settings.staffSize) ? settings.staffSize : "large";
@@ -284,23 +287,23 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
               {[1, 2, 3, 4].map(octave => <option key={octave} value={octave}>{octave}</option>)}
             </select>
           </label>
-          <label>{t("Starting speed (cycles/min)")}
-            <input type="number" min="5" max="120" step="1" value={progress.bpm} disabled={running}
+          <label>{t("Note tempo (BPM)")}
+            <input type="number" min="20" max="1800" step="0.5" value={progress.bpm} disabled={running}
               onChange={event => {
-                const bpm = bounded(Number(event.target.value), 20, 5, 120);
+                const bpm = boundedTempo(Number(event.target.value), 20, 20, 1800);
                 onSettings(previous => {
                   const old = readConfig(previous);
-                  return { ...previous, arpeggioPractice: { ...old, progress: {
+                  return { ...previous, arpeggioPractice: { ...old, tempoUnit: "note-bpm", progress: {
                     ...old.progress, [key]: { bestBpm: speedProgress(old.progress[key]).bestBpm, bpm },
                   } } };
                 });
               }} />
           </label>
-          <label>{t("Speed increase (cycles/min)")}
-            <input type="number" min="1" max="10" step="1" value={config.stepBpm} disabled={running}
-              onChange={event => persistConfig({ stepBpm: bounded(Number(event.target.value), 1, 1, 10) })} />
+          <label>{t("Tempo increase (BPM)")}
+            <input type="number" min="0.5" max="60" step="0.5" value={config.stepBpm} disabled={running}
+              onChange={event => persistConfig({ stepBpm: boundedTempo(Number(event.target.value), 4, 0.5, 60) })} />
           </label>
-          <label>{t("Clean cycles to increase")}
+          <label>{t("Clean passes to increase")}
             <input type="number" min="1" max="20" step="1" value={config.cleanTarget} disabled={running}
               onChange={event => persistConfig({ cleanTarget: bounded(Number(event.target.value), 5, 1, 20) })} />
           </label>
@@ -356,11 +359,11 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
         </details>
 
         <div className="arpeggio-stats" aria-label={t("Practice stats")}>
-          <div><span>{t("Current speed")}</span><strong>{currentBpm} {t("cycles/min")}</strong></div>
-          <div><span>{t("Cycle duration")}</span><strong>{duration.toFixed(2)} {t("seconds")}</strong></div>
+          <div><span>{t("Current speed")}</span><strong>{currentBpm} {t("bpm")}</strong></div>
+          <div><span>{t("Pass duration")}</span><strong>{duration.toFixed(2)} {t("seconds")}</strong></div>
           <div><span>{t("Notes per second")}</span><strong>{notesPerSecond.toFixed(2)}</strong></div>
-          <div><span>{t("Clean cycles")}</span><strong>{cleanStreak}/{config.cleanTarget}</strong></div>
-          <div><span>{t("Best confirmed speed")}</span><strong>{progress.bestBpm || "—"} {progress.bestBpm ? t("cycles/min") : ""}</strong></div>
+          <div><span>{t("Clean passes")}</span><strong>{cleanStreak}/{config.cleanTarget}</strong></div>
+          <div><span>{t("Best confirmed speed")}</span><strong>{progress.bestBpm || "—"} {progress.bestBpm ? t("bpm") : ""}</strong></div>
         </div>
 
         <div className="arpeggio-controls">
@@ -371,7 +374,7 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
               const clickMode = ["beat", "four", "notes"].includes(event.target.value) ? event.target.value : "notes";
               persistConfig({ clickMode });
             }}>
-              <option value="beat">{t("Beat")}</option><option value="four">{t("Four subdivisions")}</option>
+              <option value="beat">{t("Whole pass")}</option><option value="four">{t("Four clicks per pass")}</option>
               <option value="notes">{t("Each note")}</option>
             </select>
           </label>
