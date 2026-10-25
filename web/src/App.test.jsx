@@ -12,6 +12,18 @@ vi.mock("./lib/api.js", () => ({
   getToken: vi.fn(),
   setToken: vi.fn(),
 }));
+vi.mock("./screens/ArpeggioPractice.jsx", () => ({
+  default: ({ onSettings, onHome }) => (
+    <main>
+      <h1>Arpeggio speed practice</h1>
+      <button onClick={() => onSettings(prev => ({
+        ...prev,
+        arpeggioPractice: { progress: { "db-major-lh:2": { bpm: 21, bestBpm: 20 } } },
+      }))}>Save speed result</button>
+      <button onClick={onHome}>Back to lessons</button>
+    </main>
+  ),
+}));
 // The staff renderers pull in VexFlow; App's job is routing, not notation.
 vi.mock("./components/Staff.jsx", () => ({ default: () => <div data-testid="staff" /> }));
 vi.mock("./components/ChordStaff.jsx", () => ({ default: () => <div data-testid="chord-staff" /> }));
@@ -236,5 +248,44 @@ describe("grades", () => {
     await screen.findByRole("heading", { name: "Grades" });
     await userEvent.click(screen.getByRole("button", { name: /Back/ }));
     expect(await homeHeading()).toBeInTheDocument();
+  });
+});
+
+describe("arpeggio speed practice", () => {
+  it("opens for a guest, preserves other settings, and persists speed across a reload", async () => {
+    localStorage.setItem("klaviearn.guest", "1");
+    const view = render(<App />);
+    await homeHeading();
+    await userEvent.click(screen.getByRole("button", { name: "▶ Build arpeggio speed" }));
+    expect(await screen.findByRole("heading", { name: "Arpeggio speed practice" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save speed result" }));
+    const saved = JSON.parse(localStorage.getItem("klaviearn.v1"));
+    expect(saved.settings.arpeggioPractice.progress["db-major-lh:2"]).toEqual({ bpm: 21, bestBpm: 20 });
+    expect(saved.settings.staffSize).toBe("large");
+    expect(saved.noteStats).toEqual({});
+    expect(saved.sessions).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "Back to lessons" }));
+    expect(await homeHeading()).toBeInTheDocument();
+    view.unmount();
+    render(<App />);
+    await homeHeading();
+    expect(JSON.parse(localStorage.getItem("klaviearn.v1")).settings.arpeggioPractice
+      .progress["db-major-lh:2"].bpm).toBe(21);
+  });
+
+  it("saves member speed with account settings without creating curriculum attempts", async () => {
+    signedIn();
+    api.saveSettings.mockResolvedValue({ ok: true });
+    render(<App />);
+    await homeHeading();
+    await userEvent.click(screen.getByRole("button", { name: "▶ Build arpeggio speed" }));
+    await screen.findByRole("heading", { name: "Arpeggio speed practice" });
+    await userEvent.click(screen.getByRole("button", { name: "Save speed result" }));
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      arpeggioPractice: { progress: { "db-major-lh:2": { bpm: 21, bestBpm: 20 } } },
+    })));
+    expect(api.startSession).not.toHaveBeenCalled();
+    expect(api.completeSession).not.toHaveBeenCalled();
+    expect(localStorage.getItem("klaviearn.v1")).toBeNull();
   });
 });

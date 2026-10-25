@@ -247,3 +247,20 @@ describe("grouped by track", () => {
       .toEqual(["Lectura", "Ritmo", "Técnica", "Oído", "Repertorio"]);
   });
 });
+
+describe("arpeggio speed practice entry", () => {
+  it("opens from Technique without changing the curriculum node count", () => {
+    const onArpeggios = vi.fn();
+    renderHome({ onArpeggios });
+    const button = screen.getByRole("button", { name: "▶ Build arpeggio speed" });
+    expect(button.closest(".track").querySelector(".track-name").textContent).toContain("Technique");
+    expect(document.querySelectorAll(".node")).toHaveLength(SKILL_NODES.length);
+    fireEvent.click(button);
+    expect(onArpeggios).toHaveBeenCalledOnce();
+  });
+
+  it("hides the entry when Technique is folded", () => {
+    renderHome({ onArpeggios: vi.fn(), settings: { ...SETTINGS, collapsedTracks: ["technique"] } });
+    expect(screen.queryByRole("button", { name: "▶ Build arpeggio speed" })).not.toBeInTheDocument();
+  });
+});

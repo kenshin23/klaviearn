@@ -39,7 +39,7 @@ const ICONS = {
 const iconFor = node => ICONS[node.kind] ?? (node.clef === "bass" ? "𝄢 " : "𝄞 ");
 
 export default function Home({
-  nodes, me, settings, onSettings, onStart, onStats, onGrades, onLogout, onSignup,
+  nodes, me, settings, onSettings, onStart, onStats, onGrades, onLogout, onSignup, onArpeggios,
 }) {
   const [showSettings, setShowSettings] = useState(false);
 
@@ -129,7 +129,20 @@ export default function Home({
                 <span className="track-count">{inTrack.length}</span>
               </span>
             </button>
-            {!folded && <div className="nodes">{inTrack.map(renderNode)}</div>}
+            {!folded && (
+              <div className="nodes">
+                {inTrack.map(renderNode)}
+                {track === "technique" && onArpeggios && (
+                  <section className="card">
+                    <h2>{t("Arpeggio speed practice")}</h2>
+                    <p>{t("Play a whole pattern between clicks and build speed.")}</p>
+                    <button className="btn primary" onClick={onArpeggios}>
+                      {t("▶ Build arpeggio speed")}
+                    </button>
+                  </section>
+                )}
+              </div>
+            )}
           </section>
         );
       })}

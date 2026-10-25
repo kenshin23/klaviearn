@@ -2,6 +2,8 @@ import { render } from "@testing-library/react";
 import TechniqueStaff from "./TechniqueStaff.jsx";
 import { LETTER_COLORS, TECHNIQUE_PATTERNS, techniqueSpec } from "../lib/notes.js";
 import { spell } from "../lib/keys.js";
+import { makeArpeggio } from "../lib/arpeggios.js";
+import { vi } from "vitest";
 import {
   annotations, clefShape, expectDescribedForScreenReaders, expectScalesWithItsCard,
   glyphCount, headColors, noteheads, staveCount, svgOf,
@@ -57,6 +59,96 @@ describe("fingering as a scaffold", () => {
     const colored = headColors(draw("arp:C:rh", { showColor: true }));
     expect(colored[0]).toBe(LETTER_COLORS.C);
     expect(headColors(draw("arp:C:rh"))[0]).toBeNull();
+  });
+});
+
+describe("live note verdicts", () => {
+  it("updates playback colors without replacing the notation SVG or note nodes", () => {
+    const exercise = techniqueSpec("arp:C:rh");
+    const { container, rerender } = render(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={0} />,
+    );
+    const svg = svgOf(container);
+    const heads = noteheads(container);
+    const systems = [...svg.querySelectorAll(".vf-technique-system")];
+    const viewBox = svg.getAttribute("viewBox");
+    expect(headColors(container)[0]).toBe("#d61f3d");
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={1}
+        verdicts={[{ verdict: "ok" }, { verdict: "pending" }]} />,
+    );
+    expect(svgOf(container)).toBe(svg);
+    expect(noteheads(container)).toEqual(heads);
+    expect([...svg.querySelectorAll(".vf-technique-system")]).toEqual(systems);
+    expect(svg.getAttribute("viewBox")).toBe(viewBox);
+    expect(headColors(container)).toEqual([
+      "#238636", "#b77900", "#394150", "#394150", "#394150", "#394150", "#394150",
+    ]);
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={2}
+        verdicts={[{ verdict: "ok" }, { verdict: "wrong" }, { verdict: "pending" }]} />,
+    );
+    expect(svgOf(container)).toBe(svg);
+    expect(noteheads(container)).toEqual(heads);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+  });
+
+  it("restores current playback feedback after the fingering scaffold redraws", () => {
+    const exercise = techniqueSpec("arp:C:rh");
+    const verdicts = [{ verdict: "ok" }, { verdict: "wrong" }];
+    const { container, rerender } = render(
+      <TechniqueStaff exercise={exercise} showFingers showColor={false} activeIdx={2} verdicts={verdicts} />,
+    );
+    const previousSvg = svgOf(container);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={2} verdicts={verdicts} />,
+    );
+    expect(svgOf(container)).not.toBe(previousSvg);
+    expect(annotations(container)).toEqual([]);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+    expectDescribedForScreenReaders(container, /1 correct of 7/);
+  });
+
+  it("colours accepted notes green, wrong notes red, and pending notes neutrally", () => {
+    const verdicts = [
+      { verdict: "ok" }, { verdict: "early" }, { verdict: "late" },
+      { verdict: "wrong" }, { verdict: "missed" }, { verdict: "pending" },
+      { verdict: "pending" },
+    ];
+    const colors = headColors(draw("arp:C:rh", { verdicts, activeIdx: 6 }));
+    expect(colors).toEqual([
+      "#238636", "#238636", "#238636", "#d61f3d", "#d61f3d", "#394150", "#b77900",
+    ]);
+  });
+
+  it("keeps accepted verdict colors when that note is also active", () => {
+    const colors = headColors(draw("arp:C:rh", {
+      verdicts: [{ verdict: "ok" }],
+      activeIdx: 0,
+    }));
+    expect(colors[0]).toBe("#238636");
+  });
+
+  it("describes the correct count to screen readers only when verdicts are supplied", () => {
+    const withVerdicts = draw("arp:C:rh", {
+      verdicts: [{ verdict: "ok" }, { verdict: "early" }, { verdict: "wrong" }],
+    });
+    expectDescribedForScreenReaders(withVerdicts, /2 correct of 7/);
+    expectDescribedForScreenReaders(draw("arp:C:rh"), /fingering 1 2 3 5 3 2 1$/);
+  });
+
+  it("preserves the legacy red active-note behavior when verdicts are omitted", () => {
+    expect(headColors(draw("arp:C:rh", { activeIdx: 0 }))[0]).toBe("#d61f3d");
   });
 });
 
@@ -157,6 +249,59 @@ describe("key signatures", () => {
     for (const pid of Object.keys(TECHNIQUE_PATTERNS)) {
       const expected = TECHNIQUE_PATTERNS[pid].midis.length;
       expect(noteheads(draw(pid)), pid).toHaveLength(expected);
+    }
+  });
+});
+
+
+describe("whole-cycle arpeggio notation", () => {
+  it("renders all 15 attacks and exact left-hand fingers on two systems", () => {
+    const exercise = makeArpeggio();
+    const { container } = render(
+      <TechniqueStaff exercise={exercise} showFingers showColor={false} />,
+    );
+    expect(noteheads(container)).toHaveLength(15);
+    expect(staveCount(container)).toBe(2);
+    expect(annotations(container)).toEqual(exercise.fingers.map(String));
+    expectDescribedForScreenReaders(container, /15 notes, fingering 5 3 2 1 4 2 1 2 1 2 4 1 2 3 5/);
+  });
+
+  it("draws the eleven flat signs instead of replacing D-flat and A-flat with sharps", () => {
+    const exercise = makeArpeggio();
+    const plain = { ...exercise, notes: exercise.notes.map(note => ({ ...note, written: "" })) };
+    const drawn = render(<TechniqueStaff exercise={exercise} showFingers={false} showColor={false} />).container;
+    const stripped = render(<TechniqueStaff exercise={plain} showFingers={false} showColor={false} />).container;
+    expect(glyphCount(drawn)).toBe(glyphCount(stripped) + 11);
+    expect(svgOf(drawn).querySelector("g.vf-keysignature")).toBeNull();
+  });
+
+  it("expands its viewport to include measured content outside the nominal canvas", () => {
+    const getBBox = vi.fn(function measure() {
+      if (this.classList.contains("vf-technique-system")) {
+        const systemIndex = [...this.parentElement.querySelectorAll(".vf-technique-system")].indexOf(this);
+        return systemIndex === 0 ? { x: 0, y: 15, width: 340, height: 120 } : { x: 0, y: 125, width: 340, height: 110 };
+      }
+      return { x: -3, y: -18, width: 500, height: 310 };
+    });
+    const hadGetBBox = Object.hasOwn(SVGElement.prototype, "getBBox");
+    const originalGetBBox = SVGElement.prototype.getBBox;
+    SVGElement.prototype.getBBox = getBBox;
+    try {
+      const { container } = render(
+        <TechniqueStaff exercise={makeArpeggio()} showFingers showColor={false} />,
+      );
+      const systems = svgOf(container).querySelectorAll(".vf-technique-system");
+      expect(getBBox).toHaveBeenCalledTimes(3);
+      expect(systems[1].getAttribute("transform")).toBe("translate(0 34)");
+      const [, , width, height] = svgOf(container).getAttribute("viewBox").split(" ").map(Number);
+      const [left, top] = svgOf(container).getAttribute("viewBox").split(" ").map(Number);
+      expect(left).toBe(-11);
+      expect(top).toBe(-26);
+      expect(width).toBeGreaterThan(484);
+      expect(height).toBe(326);
+    } finally {
+      if (hadGetBBox) SVGElement.prototype.getBBox = originalGetBBox;
+      else delete SVGElement.prototype.getBBox;
     }
   });
 });
