@@ -10,8 +10,9 @@ MIDI measures which keys were played; finger numbers are a visual guide.
 The tempo unit is **cycles per minute**: one complete ascent and descent fits
 between accented clicks. At 20 cycles/min, a cycle lasts 3 seconds. With 16
 attacks, the note spacing is 187.5 milliseconds (about 5.33 notes/second).
-The count-in has four pulses across one cycle. Optional subdivision clicks
-help keep the inner rhythm audible.
+The count-in has four pulses across one cycle. By default, the click sounds on
+every note onset; choose four subdivisions or one beat per cycle in the click
+menu if you prefer fewer clicks.
 
 Cycles continue without a restart gap. Every requested pitch and octave must
 be played in order, within a timing window scaled to the note spacing, without

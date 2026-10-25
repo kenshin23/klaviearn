@@ -158,5 +158,6 @@ describe("arpeggio speed labels", () => {
     expect(t("Starting speed (cycles/min)")).toBe("Velocidad inicial (ciclos/min)");
     expect(t("▶ Build arpeggio speed")).toBe("▶ Aumenta la velocidad de arpegios");
     expect(t("Clean cycle. Keep going.")).toBe("Ciclo correcto. Sigue así.");
+    expect(t("Each note")).toBe("Cada nota");
   });
 });

@@ -238,6 +238,7 @@ const STRINGS = {
     "Click subdivision": "Subdivisión del clic",
     "Beat": "Ciclo completo",
     "Four subdivisions": "Cuatro subdivisiones",
+    "Each note": "Cada nota",
     "MIDI input is not supported in this browser.": "Este navegador no admite entrada MIDI.",
     "No MIDI device found. Connect a keyboard to practice.": "No se encontró un dispositivo MIDI. Conecta un teclado para practicar.",
     "MIDI devices": "Dispositivos MIDI",

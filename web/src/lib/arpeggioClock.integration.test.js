@@ -130,3 +130,23 @@ it("schedules only cycle accents after count-in with one subdivision", async () 
   expect(playing.every(([, accent]) => accent)).toBe(true);
   clock.stop();
 });
+
+it("schedules sixteen clicks at the note grid through a 20-to-21 bpm cycle change", async () => {
+  const clock = createArpeggioClock({ exercise: makeArpeggio(), subdivisions: 16, bpm: 20, onCycle: () => 21 });
+  await clock.start();
+  await advance(9200);
+  const nextBoundary = 16.05 + 60 / 21;
+  const playing = audio.click.mock.calls.filter(([at]) => at >= 13.05 && at <= nextBoundary);
+  const expected = [
+    ...Array.from({ length: 16 }, (_, i) => 13.05 + i * (3 / 16)),
+    ...Array.from({ length: 16 }, (_, i) => 16.05 + i * ((60 / 21) / 16)),
+    nextBoundary,
+  ];
+  expect(playing.map(([at]) => at)).toEqual(expected);
+  expect(playing[0][1]).toBe(true);
+  expect(playing.slice(1, 16).every(([, accent]) => !accent)).toBe(true);
+  expect(playing[16][1]).toBe(true);
+  expect(playing.slice(17, 32).every(([, accent]) => !accent)).toBe(true);
+  expect(playing.at(-1)[1]).toBe(true);
+  clock.stop();
+});

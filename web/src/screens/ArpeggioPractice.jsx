@@ -21,6 +21,7 @@ function readConfig(settings) {
     octave: bounded(raw.octave, 2, 1, 4),
     stepBpm: bounded(raw.stepBpm, 1, 1, 10),
     cleanTarget: bounded(raw.cleanTarget, 5, 1, 20),
+    clickMode: ["beat", "four", "notes"].includes(raw.clickMode) ? raw.clickMode : "notes",
     progress: validConfig(raw.progress) ? raw.progress : {},
   };
 }
@@ -50,7 +51,6 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
   const [startError, setStartError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [cleanStreak, setCleanStreak] = useState(0);
-  const [subdivisions, setSubdivisions] = useState(4);
   const clockRef = useRef(null);
   const stopMidiRef = useRef(null);
   const liveRef = useRef(null);
@@ -169,7 +169,8 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
     const clock = createArpeggioClock({
       exercise,
       bpm: progress.bpm,
-      subdivisions,
+      subdivisions: config.clickMode === "four" ? 4
+        : config.clickMode === "beat" ? 1 : exercise.midis.length,
       onCycle: result => isCurrent() ? liveRef.current?.persistCycle(result, result.bpm) : undefined,
       onStep: index => { if (isCurrent()) setActiveIdx(index); },
       onPhase: (name, count) => {
@@ -278,8 +279,12 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
           {!running ? <button type="button" className="arpeggio-primary" onClick={start}>{t("Start practice")}</button>
             : <button type="button" onClick={stop}>{t("Stop")}</button>}
           <label className="arpeggio-subdivision">{t("Click subdivision")}
-            <select value={subdivisions} disabled={running} onChange={event => setSubdivisions(Number(event.target.value))}>
-              <option value="1">{t("Beat")}</option><option value="4">{t("Four subdivisions")}</option>
+            <select value={config.clickMode} disabled={running} onChange={event => {
+              const clickMode = ["beat", "four", "notes"].includes(event.target.value) ? event.target.value : "notes";
+              persistConfig({ clickMode });
+            }}>
+              <option value="beat">{t("Beat")}</option><option value="four">{t("Four subdivisions")}</option>
+              <option value="notes">{t("Each note")}</option>
             </select>
           </label>
           <span className="arpeggio-phase" aria-live="polite">{phaseText}</span>

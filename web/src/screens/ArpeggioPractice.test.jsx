@@ -54,6 +54,42 @@ describe("arpeggio practice screen", () => {
     expect(onHome).toHaveBeenCalled();
   });
 
+  it("defaults to a click for each note and persists the selected click mode", async () => {
+    const user = userEvent.setup();
+    const settings = { arpeggioPractice: { clickMode: "four" } };
+    const onSettings = vi.fn(updater => updater(settings));
+    const { rerender } = render(<ArpeggioPractice settings={settings} onSettings={onSettings} />);
+    const selector = screen.getByLabelText("Click subdivision");
+    expect(selector).toHaveValue("four");
+
+    await user.selectOptions(selector, "notes");
+    expect(onSettings.mock.results[0].value.arpeggioPractice.clickMode).toBe("notes");
+    rerender(<ArpeggioPractice settings={onSettings.mock.results[0].value} onSettings={onSettings} />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(16);
+  });
+
+  it.each([["four", 4], ["beat", 1]])("uses %s click mode at %i subdivisions", async (clickMode, subdivisions) => {
+    const user = userEvent.setup();
+    render(<Harness initial={{ arpeggioPractice: { clickMode } }} />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(subdivisions);
+  });
+
+  it("defaults missing or invalid click modes to each note", () => {
+    const { rerender } = render(<ArpeggioPractice settings={{}} onSettings={vi.fn()} />);
+    expect(screen.getByLabelText("Click subdivision")).toHaveValue("notes");
+    rerender(<ArpeggioPractice settings={{ arpeggioPractice: { clickMode: "invalid" } }} onSettings={vi.fn()} />);
+    expect(screen.getByLabelText("Click subdivision")).toHaveValue("notes");
+  });
+
+  it("starts with sixteen clicks when no click mode is saved", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Start practice" }));
+    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(16);
+  });
+
   it("advances saved speed after clean cycles and persists only bpm and best speed", async () => {
     const user = userEvent.setup();
     render(<Harness initial={{ arpeggioPractice: { cleanTarget: 2 } }} />);
