@@ -77,9 +77,10 @@ it("shares a pending start rather than starting two audio loops", async () => {
   clock.stop();
 });
 
-it("scores all sixteen real-time attacks at 20 then 21 bpm without a gap", async () => {
+it("scores every real-time attack at 20 then 21 bpm without a gap", async () => {
   const exercise = makeArpeggio();
-  expect(exercise.midis).toHaveLength(16);
+  const noteCount = exercise.midis.length;
+  expect(noteCount).toBe(15);
   const results = [];
   const clock = createArpeggioClock({ exercise, bpm: 20, onCycle: result => {
     results.push(result);
@@ -87,8 +88,8 @@ it("scores all sixteen real-time attacks at 20 then 21 bpm without a gap", async
   } });
   await clock.start();
   for (const [start, duration] of [[3050, 3000], [6050, 60000 / 21]]) {
-    for (let i = 0; i < 16; i++) {
-      const at = start + i * duration / 16;
+    for (let i = 0; i < noteCount; i++) {
+      const at = start + i * duration / noteCount;
       await advance(at - performance.now());
       clock.record(exercise.midis[i], at);
     }
@@ -107,11 +108,11 @@ it("normalizes an anticipatory attack against the promoted cycle duration", asyn
     return 21;
   } });
   await clock.start();
-  // 64 ms is inside the old 65.625 ms tolerance, outside the new 62.5 ms.
-  await advance(5986);
+  // 68 ms is inside the old 70 ms tolerance, outside the new 66.67 ms.
+  await advance(5982);
   clock.record(exercise.midis[0]);
-  for (let i = 1; i < 16; i++) {
-    const at = 6050 + i * (60000 / 21) / 16;
+  for (let i = 1; i < exercise.midis.length; i++) {
+    const at = 6050 + i * (60000 / 21) / exercise.midis.length;
     await advance(at - performance.now());
     clock.record(exercise.midis[i], at);
   }
@@ -131,22 +132,25 @@ it("schedules only cycle accents after count-in with one subdivision", async () 
   clock.stop();
 });
 
-it("schedules sixteen clicks at the note grid through a 20-to-21 bpm cycle change", async () => {
-  const clock = createArpeggioClock({ exercise: makeArpeggio(), subdivisions: 16, bpm: 20, onCycle: () => 21 });
+it("schedules fifteen clicks at the note grid through a 20-to-21 bpm cycle change", async () => {
+  const exercise = makeArpeggio();
+  const noteCount = exercise.midis.length;
+  const clock = createArpeggioClock({ exercise, subdivisions: noteCount, bpm: 20, onCycle: () => 21 });
   await clock.start();
   await advance(9200);
   const nextBoundary = 16.05 + 60 / 21;
   const playing = audio.click.mock.calls.filter(([at]) => at >= 13.05 && at <= nextBoundary);
   const expected = [
-    ...Array.from({ length: 16 }, (_, i) => 13.05 + i * (3 / 16)),
-    ...Array.from({ length: 16 }, (_, i) => 16.05 + i * ((60 / 21) / 16)),
+    ...Array.from({ length: noteCount }, (_, i) => 13.05 + i * (3 / noteCount)),
+    ...Array.from({ length: noteCount }, (_, i) => 16.05 + i * ((60 / 21) / noteCount)),
     nextBoundary,
   ];
-  expect(playing.map(([at]) => at)).toEqual(expected);
+  expect(playing).toHaveLength(expected.length);
+  playing.forEach(([at], index) => expect(at).toBeCloseTo(expected[index], 8));
   expect(playing[0][1]).toBe(true);
-  expect(playing.slice(1, 16).every(([, accent]) => !accent)).toBe(true);
-  expect(playing[16][1]).toBe(true);
-  expect(playing.slice(17, 32).every(([, accent]) => !accent)).toBe(true);
+  expect(playing.slice(1, noteCount).every(([, accent]) => !accent)).toBe(true);
+  expect(playing[noteCount][1]).toBe(true);
+  expect(playing.slice(noteCount + 1, 2 * noteCount).every(([, accent]) => !accent)).toBe(true);
   expect(playing.at(-1)[1]).toBe(true);
   clock.stop();
 });

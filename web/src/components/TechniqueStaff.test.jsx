@@ -165,23 +165,23 @@ describe("key signatures", () => {
 
 
 describe("whole-cycle arpeggio notation", () => {
-  it("renders all 16 attacks and exact left-hand fingers on two systems", () => {
+  it("renders all 15 attacks and exact left-hand fingers on two systems", () => {
     const exercise = makeArpeggio();
     const { container } = render(
       <TechniqueStaff exercise={exercise} showFingers showColor={false} />,
     );
-    expect(noteheads(container)).toHaveLength(16);
+    expect(noteheads(container)).toHaveLength(15);
     expect(staveCount(container)).toBe(2);
     expect(annotations(container)).toEqual(exercise.fingers.map(String));
-    expectDescribedForScreenReaders(container, /16 notes, fingering 5 3 2 1 4 2 1 2 2 1 2 4 1 2 3 5/);
+    expectDescribedForScreenReaders(container, /15 notes, fingering 5 3 2 1 4 2 1 2 1 2 4 1 2 3 5/);
   });
 
-  it("draws the twelve flat signs instead of replacing D-flat and A-flat with sharps", () => {
+  it("draws the eleven flat signs instead of replacing D-flat and A-flat with sharps", () => {
     const exercise = makeArpeggio();
     const plain = { ...exercise, notes: exercise.notes.map(note => ({ ...note, written: "" })) };
     const drawn = render(<TechniqueStaff exercise={exercise} showFingers={false} showColor={false} />).container;
     const stripped = render(<TechniqueStaff exercise={plain} showFingers={false} showColor={false} />).container;
-    expect(glyphCount(drawn)).toBe(glyphCount(stripped) + 12);
+    expect(glyphCount(drawn)).toBe(glyphCount(stripped) + 11);
     expect(svgOf(drawn).querySelector("g.vf-keysignature")).toBeNull();
   });
 

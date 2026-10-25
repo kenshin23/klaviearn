@@ -8,8 +8,8 @@ MIDI measures which keys were played; finger numbers are a visual guide.
 ## Whole-pattern tempo
 
 The tempo unit is **cycles per minute**: one complete ascent and descent fits
-between accented clicks. At 20 cycles/min, a cycle lasts 3 seconds. With 16
-attacks, the note spacing is 187.5 milliseconds (about 5.33 notes/second).
+between accented clicks. At 20 cycles/min, a cycle lasts 3 seconds. With 15
+attacks, the note spacing is 200 milliseconds (5 notes/second).
 The count-in has four pulses across one cycle. By default, the click sounds on
 every note onset; choose four subdivisions or one beat per cycle in the click
 menu if you prefer fewer clicks.
@@ -28,17 +28,18 @@ hiding the browser tab stops practice.
 
 ## First preset
 
-The left-hand D-flat major preset contains these **16 separate attacks**:
+The left-hand D-flat major preset contains these **15 separate attacks**:
 
 ```text
-Notes:    Db Ab Db F Ab Db F Ab | Ab F Db Ab F Db Ab Db
-Fingers:   5  3  2 1  4  2 1  2 |  2 1  2  4 1  2  3  5
+Notes:    Db Ab Db F Ab Db F Ab | F Db Ab F Db Ab Db
+Fingers:   5  3  2 1  4  2 1  2 |  1  2  4 1  2  3  5
 ```
 
-The two top A-flats are separate key presses. The first and last D-flats are
-also separate attacks when cycles repeat. The default starting note is Db2
-(MIDI 37); the lower octave can be selected before starting. The notation
-retains D-flat and A-flat spellings rather than substituting sharps.
+There is one top A-flat (Ab4, MIDI 68); the descent starts immediately on F4
+(MIDI 65). The first and last D-flats are separate attacks when cycles repeat.
+The default starting note is Db2 (MIDI 37); the lower octave can be selected
+before starting. The notation retains D-flat and A-flat spellings rather than
+substituting sharps.
 
 ## Saved progress
 

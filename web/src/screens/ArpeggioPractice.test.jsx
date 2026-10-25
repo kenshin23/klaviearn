@@ -2,6 +2,7 @@ import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ArpeggioPractice from "./ArpeggioPractice.jsx";
+import { makeArpeggio } from "../lib/arpeggios.js";
 import { setLocale } from "../lib/i18n.js";
 
 vi.mock("../components/TechniqueStaff.jsx", () => ({
@@ -42,7 +43,12 @@ describe("arpeggio practice screen", () => {
     expect(screen.getByText("Note and finger sequence").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByRole("heading", { name: "Arpeggio speed trainer" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Note and finger sequence"));
-    expect(screen.getByRole("list", { name: "Note and finger sequence" }).children).toHaveLength(16);
+    const sequence = screen.getByRole("list", { name: "Note and finger sequence" });
+    expect(sequence.children).toHaveLength(makeArpeggio().midis.length);
+    expect([...sequence.children].map(item => item.querySelector("span").textContent)).toEqual([
+      "Db2", "Ab2", "Db3", "F3", "Ab3", "Db4", "F4", "Ab4", "F4",
+      "Db4", "Ab3", "F3", "Db3", "Ab2", "Db2",
+    ]);
     expect(screen.getByText(/^MIDI devices: Test keyboard$/)).toHaveClass("arpeggio-midi");
     expect(startMidiListener).toHaveBeenCalledTimes(1);
   });
@@ -74,7 +80,7 @@ describe("arpeggio practice screen", () => {
     expect(onSettings.mock.results[0].value.arpeggioPractice.clickMode).toBe("notes");
     rerender(<ArpeggioPractice settings={onSettings.mock.results[0].value} onSettings={onSettings} />);
     await user.click(screen.getByRole("button", { name: "Start practice" }));
-    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(16);
+    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(makeArpeggio().midis.length);
   });
 
   it.each([["four", 4], ["beat", 1]])("uses %s click mode at %i subdivisions", async (clickMode, subdivisions) => {
@@ -93,11 +99,11 @@ describe("arpeggio practice screen", () => {
     expect(screen.getByLabelText("Click subdivision")).toHaveValue("notes");
   });
 
-  it("starts with sixteen clicks when no click mode is saved", async () => {
+  it("starts with one click per note when no click mode is saved", async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(screen.getByRole("button", { name: "Start practice" }));
-    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(16);
+    expect(createArpeggioClock.mock.results[0].value.options.subdivisions).toBe(makeArpeggio().midis.length);
   });
 
   it("advances saved speed after clean cycles and persists only bpm and best speed", async () => {

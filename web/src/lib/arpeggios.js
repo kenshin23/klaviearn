@@ -18,7 +18,6 @@ export const ARPEGGIO_PRESETS = [
       { offset: 24, finger: 2, letter: "D", accidental: "b" },
       { offset: 28, finger: 1, letter: "F", accidental: "" },
       { offset: 31, finger: 2, letter: "A", accidental: "b" },
-      { offset: 31, finger: 2, letter: "A", accidental: "b" },
       { offset: 28, finger: 1, letter: "F", accidental: "" },
       { offset: 24, finger: 2, letter: "D", accidental: "b" },
       { offset: 19, finger: 4, letter: "A", accidental: "b" },
@@ -90,7 +89,7 @@ export function makeArpeggio(preset = ARPEGGIO_PRESETS[0], octave = 2) {
   };
 }
 
-/** Sixteen attacks occupy one beat, including the repeated apex. */
+/** All attacks in the exercise occupy one beat. */
 export const expectedCycle = exercise =>
   expectNotes(exercise.midis, { beatsPerNote: 1 / exercise.midis.length });
 

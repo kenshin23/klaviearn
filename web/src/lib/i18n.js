@@ -203,7 +203,7 @@ const STRINGS = {
     "Arpeggio speed practice": "Práctica de velocidad de arpegios",
     "Play a whole pattern between clicks and build speed.": "Toca un patrón completo entre clics y aumenta la velocidad.",
     "▶ Build arpeggio speed": "▶ Aumenta la velocidad de arpegios",
-    "Extra notes. Keep the pattern to 16 notes.": "Notas adicionales. Mantén el patrón de 16 notas.",
+    "Extra notes. Play only the notes in the pattern.": "Notas adicionales. Toca solo las notas del patrón.",
     "Wrong note or octave. Try the cycle again.": "Nota u octava incorrecta. Repite el ciclo.",
     "Some notes were missed. Try the cycle again.": "Faltaron algunas notas. Repite el ciclo.",
     "Notes were off the beat. Follow the click.": "Las notas estaban fuera de tiempo. Sigue el clic.",

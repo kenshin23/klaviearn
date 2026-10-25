@@ -28,7 +28,7 @@ function readConfig(settings) {
 
 function feedbackFor(result) {
   if (result.hit) return t("Clean cycle. Keep going.");
-  if (result.extras > 0) return t("Extra notes. Keep the pattern to 16 notes.");
+  if (result.extras > 0) return t("Extra notes. Play only the notes in the pattern.");
   const verdicts = result.verdicts ?? [];
   if (verdicts.some(item => item.verdict === "wrong")) return t("Wrong note or octave. Try the cycle again.");
   if (verdicts.some(item => item.verdict === "missed")) return t("Some notes were missed. Try the cycle again.");

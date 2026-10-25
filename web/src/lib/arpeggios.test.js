@@ -7,32 +7,33 @@ const exercise = makeArpeggio();
 const perfect = expectedCycle(exercise).map(event => ({ at: event.at, midi: event.midis[0] }));
 
 describe("Db major arpeggio model", () => {
-  it("spells the left-hand pattern with flats, the repeated apex, and the intended fingering", () => {
+  it("spells the left-hand pattern with flats, one apex, and the intended fingering", () => {
     expect(ARPEGGIO_PRESETS[0]).toMatchObject({
       id: "db-major-lh", name: "Db major", hand: "lh", clef: "bass", baseMidi: 37,
     });
-    expect(exercise.midis).toEqual([37, 44, 49, 53, 56, 61, 65, 68, 68, 65, 61, 56, 53, 49, 44, 37]);
-    expect(exercise.fingers).toEqual([5, 3, 2, 1, 4, 2, 1, 2, 2, 1, 2, 4, 1, 2, 3, 5]);
+    expect(exercise.midis).toEqual([37, 44, 49, 53, 56, 61, 65, 68, 65, 61, 56, 53, 49, 44, 37]);
+    expect(exercise.fingers).toEqual([5, 3, 2, 1, 4, 2, 1, 2, 1, 2, 4, 1, 2, 3, 5]);
     expect(exercise.notes.map(note => `${note.letter}${note.acc}`)).toEqual([
-      "Db", "Ab", "Db", "F", "Ab", "Db", "F", "Ab",
-      "Ab", "F", "Db", "Ab", "F", "Db", "Ab", "Db",
+      "Db", "Ab", "Db", "F", "Ab", "Db", "F", "Ab", "F",
+      "Db", "Ab", "F", "Db", "Ab", "Db",
     ]);
-    expect(exercise.notes.slice(7, 9).map(note => note.midi)).toEqual([68, 68]);
+    expect(exercise.midis.filter(midi => midi === 68)).toHaveLength(1);
+    expect(exercise.midis.slice(7, 9)).toEqual([68, 65]);
     expect(exercise.notes[0]).toMatchObject({ key: "d/2", written: "b", clef: "bass" });
     expect(exercise).not.toHaveProperty("key");
   });
 
-  it("puts all 16 attacks inside one cycle beat", () => {
+  it("puts all 15 attacks inside one cycle beat", () => {
     const expected = expectedCycle(exercise);
-    expect(expected).toHaveLength(16);
-    expect(expected.map(event => event.at)).toEqual(Array.from({ length: 16 }, (_, i) => i / 16));
+    expect(expected).toHaveLength(15);
+    expect(expected.map(event => event.at)).toEqual(Array.from({ length: 15 }, (_, i) => i / 15));
     expect(expected.at(-1).at).toBeLessThan(1);
   });
 
   it("scores exact pitch and octave with the narrow cycle tolerance", () => {
     expect(scoreCycle(exercise, perfect).hit).toBe(true);
-    expect(scoreCycle(exercise, perfect.map(event => ({ ...event, midi: event.midi + 12 })).slice(0, 16)).hit).toBe(false);
-    const slightlyEarly = perfect.map(event => ({ ...event, at: event.at - 0.02 / 16 }));
+    expect(scoreCycle(exercise, perfect.map(event => ({ ...event, midi: event.midi + 12 }))).hit).toBe(false);
+    const slightlyEarly = perfect.map(event => ({ ...event, at: event.at - 0.02 / 15 }));
     expect(scoreCycle(exercise, slightlyEarly).hit).toBe(true);
   });
 
@@ -45,6 +46,7 @@ describe("Db major arpeggio model", () => {
     const burst = perfect.flatMap(event => [event, { ...event, at: event.at + 0.001 }]);
     expect(scoreCycle(exercise, burst).hit).toBe(false);
     expect(scoreCycle(exercise, [...perfect, { at: 1, midi: exercise.midis[0] }]).hit).toBe(false);
+    expect(scoreCycle(exercise, [...perfect.slice(0, 8), perfect[7], ...perfect.slice(8)]).hit).toBe(false);
   });
 
   it("validates preset notation, fingers, octave, and MIDI bounds", () => {
