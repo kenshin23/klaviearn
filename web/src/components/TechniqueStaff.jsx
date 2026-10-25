@@ -22,6 +22,44 @@ import { KEYS, LETTER_COLORS } from "../lib/notes.js";
 // Beyond this many notes, one line renders too small to read comfortably.
 const SPLIT_ABOVE = 9;
 
+function noteColor({ index, note, showColor, activeIdx, verdicts }) {
+  if (verdicts !== undefined) {
+    const verdict = verdicts[index]?.verdict ?? "pending";
+    return verdict === "ok" || verdict === "early" || verdict === "late"
+      ? "#238636"
+      : verdict === "wrong" || verdict === "missed"
+        ? "#d61f3d"
+        : index === activeIdx ? "#b77900" : "#394150";
+  }
+  if (index === activeIdx) return "#d61f3d";
+  return showColor ? LETTER_COLORS[note.letter] : null;
+}
+
+function updateNoteColors(svg, exercise, showColor, activeIdx, verdicts) {
+  const noteGroups = svg.querySelectorAll("g.vf-stavenote");
+  exercise.notes.forEach((note, index) => {
+    const group = noteGroups[index];
+    if (!group) return;
+    const color = noteColor({ index, note, showColor, activeIdx, verdicts });
+    if (color) {
+      group.setAttribute("fill", color);
+      group.setAttribute("stroke", color);
+    } else {
+      group.removeAttribute("fill");
+      group.removeAttribute("stroke");
+    }
+  });
+
+  const count = exercise.notes.length;
+  svg.setAttribute(
+    "aria-label",
+    `${exercise.name}, ${count} notes, fingering ${exercise.fingers.join(" ")}` +
+      (verdicts === undefined
+        ? ""
+        : `, ${verdicts.filter(({ verdict }) => ["ok", "early", "late"].includes(verdict)).length} correct of ${count}`),
+  );
+}
+
 export default function TechniqueStaff({ exercise, showFingers, showColor, activeIdx = -1, verdicts }) {
   const ref = useRef(null);
 
@@ -56,27 +94,12 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
         const i = from + offset;
         const sn = new StaveNote({ clef: n.clef, keys: [n.key], duration: "q" });
         if (n.written) sn.addModifier(new Accidental(n.written), 0);
-        if (showColor) {
-          const c = LETTER_COLORS[n.letter];
-          sn.setStyle({ fillStyle: c, strokeStyle: c });
-        }
-        if (verdicts !== undefined) {
-          const verdict = verdicts[i]?.verdict ?? "pending";
-          const color = verdict === "ok" || verdict === "early" || verdict === "late"
-            ? "#238636"
-            : verdict === "wrong" || verdict === "missed"
-              ? "#d61f3d"
-              : i === activeIdx ? "#b77900" : "#394150";
-          sn.setStyle({ fillStyle: color, strokeStyle: color });
-        }
+        if (showColor) sn.setStyle({ fillStyle: LETTER_COLORS[n.letter], strokeStyle: LETTER_COLORS[n.letter] });
         if (showFingers) {
           const finger = new Annotation(String(exercise.fingers[i]))
             .setFont("Atkinson Hyperlegible, Helvetica, sans-serif", 13, "bold")
             .setVerticalJustification(AnnotationVerticalJustify.TOP);
           sn.addModifier(finger);
-        }
-        if (verdicts === undefined && i === activeIdx) {
-          sn.setStyle({ fillStyle: "#d61f3d", strokeStyle: "#d61f3d" });
         }
         return sn;
       });
@@ -133,13 +156,13 @@ export default function TechniqueStaff({ exercise, showFingers, showColor, activ
     svg.style.width = "100%";
     svg.style.height = "auto";
     svg.setAttribute("role", "img");
-    svg.setAttribute(
-      "aria-label",
-      `${exercise.name}, ${count} notes, fingering ${exercise.fingers.join(" ")}` +
-        (verdicts === undefined
-          ? ""
-          : `, ${verdicts.filter(({ verdict }) => ["ok", "early", "late"].includes(verdict)).length} correct of ${count}`),
-    );
+  }, [exercise, showFingers, showColor]);
+
+  // Playback only changes note colors and the accessible progress label. Keep
+  // the rendered score and its measured SVG bounds in place while it runs.
+  useEffect(() => {
+    const svg = ref.current?.querySelector("svg");
+    if (svg) updateNoteColors(svg, exercise, showColor, activeIdx, verdicts);
   }, [exercise, showFingers, showColor, activeIdx, verdicts]);
 
   return <div ref={ref} className="staff" />;

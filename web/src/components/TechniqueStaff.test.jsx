@@ -63,6 +63,62 @@ describe("fingering as a scaffold", () => {
 });
 
 describe("live note verdicts", () => {
+  it("updates playback colors without replacing the notation SVG or note nodes", () => {
+    const exercise = techniqueSpec("arp:C:rh");
+    const { container, rerender } = render(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={0} />,
+    );
+    const svg = svgOf(container);
+    const heads = noteheads(container);
+    const systems = [...svg.querySelectorAll(".vf-technique-system")];
+    const viewBox = svg.getAttribute("viewBox");
+    expect(headColors(container)[0]).toBe("#d61f3d");
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={1}
+        verdicts={[{ verdict: "ok" }, { verdict: "pending" }]} />,
+    );
+    expect(svgOf(container)).toBe(svg);
+    expect(noteheads(container)).toEqual(heads);
+    expect([...svg.querySelectorAll(".vf-technique-system")]).toEqual(systems);
+    expect(svg.getAttribute("viewBox")).toBe(viewBox);
+    expect(headColors(container)).toEqual([
+      "#238636", "#b77900", "#394150", "#394150", "#394150", "#394150", "#394150",
+    ]);
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={2}
+        verdicts={[{ verdict: "ok" }, { verdict: "wrong" }, { verdict: "pending" }]} />,
+    );
+    expect(svgOf(container)).toBe(svg);
+    expect(noteheads(container)).toEqual(heads);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+  });
+
+  it("restores current playback feedback after the fingering scaffold redraws", () => {
+    const exercise = techniqueSpec("arp:C:rh");
+    const verdicts = [{ verdict: "ok" }, { verdict: "wrong" }];
+    const { container, rerender } = render(
+      <TechniqueStaff exercise={exercise} showFingers showColor={false} activeIdx={2} verdicts={verdicts} />,
+    );
+    const previousSvg = svgOf(container);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+
+    rerender(
+      <TechniqueStaff exercise={exercise} showFingers={false} showColor={false} activeIdx={2} verdicts={verdicts} />,
+    );
+    expect(svgOf(container)).not.toBe(previousSvg);
+    expect(annotations(container)).toEqual([]);
+    expect(headColors(container)).toEqual([
+      "#238636", "#d61f3d", "#b77900", "#394150", "#394150", "#394150", "#394150",
+    ]);
+    expectDescribedForScreenReaders(container, /1 correct of 7/);
+  });
+
   it("colours accepted notes green, wrong notes red, and pending notes neutrally", () => {
     const verdicts = [
       { verdict: "ok" }, { verdict: "early" }, { verdict: "late" },
