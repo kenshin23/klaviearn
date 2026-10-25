@@ -28,7 +28,20 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: .8rem;
-  margin-bottom: 1.4rem;
+  margin: .9rem 0 1.4rem;
+}
+
+.arpeggio-settings summary {
+  width: fit-content;
+  color: var(--gold);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.arpeggio-settings summary:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 4px;
+  border-radius: .2rem;
 }
 
 .arpeggio-config label, .arpeggio-subdivision {

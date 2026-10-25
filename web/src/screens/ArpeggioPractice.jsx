@@ -215,7 +215,9 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
       </header>
 
       <section className="arpeggio-card" aria-labelledby="arp-pattern-title">
-        <div className="arpeggio-config">
+        <details className="arpeggio-settings">
+          <summary>{t("Settings")}</summary>
+          <div className="arpeggio-config">
           <label>{t("Pattern")}
             <select value={preset.id} disabled={running} onChange={event => {
               const presetId = ARPEGGIO_PRESETS.some(item => item.id === event.target.value)
@@ -253,7 +255,8 @@ export default function ArpeggioPractice({ settings = {}, onSettings = () => {},
             <input type="number" min="1" max="20" step="1" value={config.cleanTarget} disabled={running}
               onChange={event => persistConfig({ cleanTarget: bounded(Number(event.target.value), 5, 1, 20) })} />
           </label>
-        </div>
+          </div>
+        </details>
 
         <h2 id="arp-pattern-title">{t(preset.name)} · {t(preset.hand === "rh" ? "right hand" : "left hand")}</h2>
         <div className={`staff-card size-${staffSize}`}>

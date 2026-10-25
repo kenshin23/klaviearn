@@ -24,6 +24,10 @@ function Harness({ initial = {} }) {
   return <ArpeggioPractice settings={settings} onSettings={setSettings} onHome={vi.fn()} />;
 }
 
+async function openSettings(user) {
+  await user.click(screen.getByText("Settings"));
+}
+
 beforeEach(() => {
   setLocale("en", "letters");
   createArpeggioClock.mockClear();
@@ -34,6 +38,7 @@ beforeEach(() => {
 describe("arpeggio practice screen", () => {
   it("shows the exact sequence and available MIDI keyboard", () => {
     render(<Harness />);
+    expect(screen.getByText("Settings").closest("details")).not.toHaveAttribute("open");
     expect(screen.getByRole("heading", { name: "Arpeggio speed trainer" })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Note and finger sequence" }).children).toHaveLength(16);
     expect(screen.getByText(/^MIDI devices: Test keyboard$/)).toHaveClass("arpeggio-midi");
@@ -59,6 +64,7 @@ describe("arpeggio practice screen", () => {
     const settings = { arpeggioPractice: { clickMode: "four" } };
     const onSettings = vi.fn(updater => updater(settings));
     const { rerender } = render(<ArpeggioPractice settings={settings} onSettings={onSettings} />);
+    await openSettings(user);
     const selector = screen.getByLabelText("Click subdivision");
     expect(selector).toHaveValue("four");
 
@@ -78,8 +84,10 @@ describe("arpeggio practice screen", () => {
 
   it("defaults missing or invalid click modes to each note", () => {
     const { rerender } = render(<ArpeggioPractice settings={{}} onSettings={vi.fn()} />);
+    fireEvent.click(screen.getByText("Settings"));
     expect(screen.getByLabelText("Click subdivision")).toHaveValue("notes");
     rerender(<ArpeggioPractice settings={{ arpeggioPractice: { clickMode: "invalid" } }} onSettings={vi.fn()} />);
+    fireEvent.click(screen.getByText("Settings"));
     expect(screen.getByLabelText("Click subdivision")).toHaveValue("notes");
   });
 
@@ -134,6 +142,7 @@ describe("arpeggio practice screen", () => {
     const settings = { unrelated: "kept", arpeggioPractice: { octave: 2 } };
     const onSettings = vi.fn(updater => updater(settings));
     render(<ArpeggioPractice settings={settings} onSettings={onSettings} />);
+    await openSettings(user);
     await user.selectOptions(screen.getByLabelText("Starting octave"), "3");
     expect(settings.arpeggioPractice.octave).toBe(2);
     expect(onSettings).toHaveBeenCalledWith(expect.any(Function));
@@ -149,6 +158,7 @@ describe("arpeggio session controls", () => {
     } } };
     const onSettings = vi.fn(updater => updater(settings));
     render(<ArpeggioPractice settings={settings} onSettings={onSettings} />);
+    fireEvent.click(screen.getByText("Settings"));
     const tempo = screen.getByLabelText("Starting speed (cycles/min)");
     fireEvent.change(tempo, { target: { value: "200" } });
     expect(onSettings.mock.results[0].value.arpeggioPractice.progress).toEqual({
@@ -159,7 +169,9 @@ describe("arpeggio session controls", () => {
   });
 
   it("counts consecutive callbacks before a render and reports accepted timing as clean", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
+    await openSettings(user);
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     const { options } = createArpeggioClock.mock.results[0].value;
     await act(async () => {
@@ -174,7 +186,9 @@ describe("arpeggio session controls", () => {
   });
 
   it("requires a new full clean streak after stopping and restarting", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
+    await openSettings(user);
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     const first = createArpeggioClock.mock.results[0].value;
     await act(async () => {
@@ -199,6 +213,7 @@ describe("arpeggio session controls", () => {
     createArpeggioClock.mockImplementationOnce(options => { clock.options = options; return clock; });
     const onHome = vi.fn();
     render(<ArpeggioPractice settings={{}} onSettings={vi.fn()} onHome={onHome} />);
+    fireEvent.click(screen.getByText("Settings"));
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     expect(screen.getByLabelText("Starting speed (cycles/min)")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Start practice" })).not.toBeInTheDocument();
@@ -224,7 +239,9 @@ describe("arpeggio session controls", () => {
   });
 
   it("unlocks controls when the clock stops after lag", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
+    await openSettings(user);
     fireEvent.click(screen.getByRole("button", { name: "Start practice" }));
     const { options } = createArpeggioClock.mock.results[0].value;
     await act(async () => { options.onPhase("idle"); });
